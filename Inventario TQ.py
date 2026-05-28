@@ -131,34 +131,18 @@ st.subheader("📝 Gestión de Ítems")
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    if st.session_state.edit_id is not None:
-        tipo = st.text_input("Tipo de Insumo", value=st.session_state.edit_datos.get("Tipo Insumo", ""), disabled=True)
-        clase = st.text_input("Clase", value=st.session_state.edit_datos.get("Clase", ""), disabled=True)
-    else:
-        tipo = st.text_input("Tipo de Insumo")
-        clase = st.text_input("Clase")
+    tipo = st.text_input("Tipo de Insumo", value=st.session_state.edit_datos.get("Tipo Insumo", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
+    clase = st.text_input("Clase", value=st.session_state.edit_datos.get("Clase", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
 with col2:
-    if st.session_state.edit_id is not None:
-        medidas = st.text_input("Medidas", value=st.session_state.edit_datos.get("Medidas", ""), disabled=True)
-        equipo = st.text_input("Equipo", value=st.session_state.edit_datos.get("Equipo", ""), disabled=True)
-    else:
-        medidas = st.text_input("Medidas")
-        equipo = st.text_input("Equipo")
+    medidas = st.text_input("Medidas", value=st.session_state.edit_datos.get("Medidas", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
+    equipo = st.text_input("Equipo", value=st.session_state.edit_datos.get("Equipo", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
 with col3:
-    if st.session_state.edit_id is not None:
-        eficiencia = st.text_input("Eficiencia", value=st.session_state.edit_datos.get("Eficiencia", ""), disabled=True)
-        cantidad = st.text_input("Cantidad Actual", value=str(st.session_state.edit_datos.get("Cant. Actual", "")))
-    else:
-        eficiencia = st.text_input("Eficiencia")
-        cantidad = st.text_input("Cantidad Actual")
+    eficiencia = st.text_input("Eficiencia", value=st.session_state.edit_datos.get("Eficiencia", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
+    # ESTE ES EL CAMBIO: El campo cantidad ahora SIEMPRE está activo para permitir edición
+    cantidad = st.text_input("Cantidad Actual", value=str(st.session_state.edit_datos.get("Cant. Actual", "")) if st.session_state.edit_id else "")
 with col4:
-    if st.session_state.edit_id is not None:
-        verificado = st.text_input("Verificado Por", value=str(st.session_state.edit_datos.get("Verificado Por", "")))
-        observaciones = st.text_input("Observaciones", value=str(st.session_state.edit_datos.get("Observaciones", "")))
-    else:
-        verificado = st.text_input("Verificado Por")
-        observaciones = st.text_input("Observaciones")
-
+    verificado = st.text_input("Verificado Por", value=str(st.session_state.edit_datos.get("Verificado Por", "")) if st.session_state.edit_id else "")
+    observaciones = st.text_input("Observaciones", value=str(st.session_state.edit_datos.get("Observaciones", "")) if st.session_state.edit_id else "")
 # --- BOTONES DE ACCIÓN ---
 b_col1, b_col2, b_col3 = st.columns([2, 2, 8])
 
