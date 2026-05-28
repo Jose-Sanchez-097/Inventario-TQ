@@ -45,13 +45,14 @@ def guardar_en_google_sheets(df_para_guardar):
     """ Utiliza el backend de Streamlit para reescribir los datos usando actualización directa """
     try:
         from streamlit_gsheets import GSheetsConnection
+       # Forzamos a la conexión a usar la URL de escritura directa
         conexion_directa = st.connection("gsheets", type=GSheetsConnection)
-        conexion_directa.update(spreadsheet=URL_ESCRITURA, worksheet=NOMB_HOJA, data=df_para_guardar)
+        conexion_directa.update(spreadsheet=f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/edit", worksheet=NOMB_HOJA, data=df_para_guardar)
         return True
     except:
-        # Alternativa de respaldo por si falla la librería de actualización
         st.error("No se pudo escribir en la hoja. Verifica que la librería 'st-gsheets-connection' siga instalada en requirements.txt")
         return False
+    except:
 
 # Historial en memoria de la sesión
 if "historial" not in st.session_state:
