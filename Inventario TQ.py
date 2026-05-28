@@ -10,38 +10,45 @@ st.title("📦 Control de Inventario e Historial TQ")
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
-# 1. ⚠️ PEGA AQUÍ EL ENLACE COMPLETO DE TU GOOGLE SHEETS PARA LECTURA ⚠️
-URL_COMPLETA_GOOGLE = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit"
+# 1. ⚠️ PEGA AQUÍ TU ENLACE QUE TERMINA EN export?format=csv ⚠️
+URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit"
 
-# 2. ⚠️ CONFIGURA AQUÍ LOS DATOS DE TU GOOGLE FORM PARA ESCRITURA ⚠️
+# 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
 # --- LECTURA DIRECTA Y CONSOLIDACIÓN ---
 try:
-    base_url = URL_COMPLETA_GOOGLE.split("/edit")[0]
-    URL_LECTURA_DIRECTA = f"{base_url}/export?format=csv"
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiar espacios en los nombres de las columnas
-        df_raw.columns = [c.strip() for c in df_raw.columns]
+        # Limpiar espacios raros o invisibles en los nombres de las columnas
+        df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # Forzar ID a numérico de forma segura
-        df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
+        # BUSQUEDA INTELIGENTE DE LA COLUMNA ID (Evita el KeyError de raíz)
+        columna_id_encontrada = [c for c in df_raw.columns if c.upper() == "ID"]
         
-        # --- CONSOLIDACIÓN DE DUPLICADOS ---
-        # Si Google Forms añade "Marca temporal", la usamos para ordenar. 
-        # Si no existe, confiamos en el orden posicional (las filas de abajo son las más nuevas).
-        if "Marca temporal" in df_raw.columns:
-            df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
-            df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
-        
-        # Conservamos ÚNICAMENTE la última fila registrada para cada ID (el estado más actual)
-        df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
-        
-        # Calcular el siguiente ID disponible basándonos en el histórico completo
-        id_siguiente = int(df_raw["ID"].max()) + 1
+        if columna_id_encontrada:
+            nombre_real_id = columna_id_encontrada[0]
+            # Renombramos la columna internamente a "ID" en mayúsculas por si acaso
+            df_raw = df_raw.rename(columns={nombre_real_id: "ID"})
+            df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
+            
+            # --- CONSOLIDACIÓN DE REGISTROS (Formulario) ---
+            # Si existe "Marca temporal", ordenamos cronológicamente
+            if "Marca temporal" in df_raw.columns:
+                df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
+                df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
+            
+            # Conservamos solo el último estado de cada ID (la última modificación)
+            df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
+            id_siguiente = int(df_raw["ID"].max()) + 1
+        else:
+            # Si de verdad no existe la columna ID en tu Excel actual, la creamos
+            st.warning("⚠️ No se encontró la columna 'ID' en tu hoja. Creando una estructura temporal...")
+            df_raw["ID"] = range(1, len(df_raw) + 1)
+            df_db = df_raw.copy()
+            id_siguiente = len(df_raw) + 1
     else:
         df_db = pd.DataFrame(columns=[
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
@@ -53,7 +60,7 @@ except Exception as e:
 
 # --- FUNCIÓN DE ESCRITURA MEDIANTE FORMULARIO ---
 def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_val, cant_val, verif_val, obs_val):
-    # ⚠️ REEMPLAZA LOS NÚMEROS 'entry.XXXXXX' CON LOS TUYOS REALES ⚠️
+    # ⚠️ REEMPLAZA ESTOS 'entry.XXXXXX' CON LOS TUYOS DEL FORMULARIO ⚠️
     form_data = {
         "entry.100001": str(id_val),       
         "entry.100002": str(tipo_val),     
@@ -128,11 +135,11 @@ else:
             cant_val = float(cantidad)
             idx = df_db[df_db["ID"] == st.session_state.edit_id].index[0]
             
-            t_fijo = df_db.at[idx, "Tipo Insumo"]
-            m_fijo = df_db.at[idx, "Medidas"]
-            e_fijo = df_db.at[idx, "Eficiencia"]
-            c_fijo = df_db.at[idx, "Clase"]
-            eq_fijo = df_db.at[idx, "Equipo"]
+            t_fijo = df_db.at[idx, "Tipo Insumo"] if "Tipo Insumo" in df_db.columns else ""
+            m_fijo = df_db.at[idx, "Medidas"] if "Medidas" in df_db.columns else ""
+            e_fijo = df_db.at[idx, "Eficiencia"] if "Eficiencia" in df_db.columns else ""
+            c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
+            eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
             
             if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
                 registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
@@ -155,7 +162,7 @@ with tab_inv:
     buscar = st.text_input("🔍 Buscar ítem en el inventario...")
     df_filtrado = df_db.copy()
     
-    # Ocular la columna de marca temporal de Google en la visualización para limpieza de la interfaz
+    # Ocultamos la marca temporal de la interfaz para que se vea limpio en el celular
     if "Marca temporal" in df_filtrado.columns:
         df_filtrado = df_filtrado.drop(columns=["Marca temporal"])
     
@@ -176,7 +183,7 @@ with tab_inv:
         
         st.write("---")
         st.write("**⚠️ Acciones de Control:**")
-        st.info("Para modificar existencias, introduce el ID del ítem abajo. Nota: Cada modificación añadirá una nueva fila histórica en Google Sheets, pero la aplicación siempre mostrará el valor más reciente.")
+        st.info("Para modificar existencias, introduce el ID del ítem abajo.")
         
         act_col1, act_col2 = st.columns([2, 10])
         id_seleccionar = act_col1.number_input("ID del Ítem para Modificar:", min_value=1, step=1, key="id_control")
