@@ -151,32 +151,25 @@ if st.button("🔄 Actualizar Inventario"):
     st.cache_data.clear()
     st.rerun()
 if st.session_state.edit_id is None:
-    if b_col1.button("✨ Agregar Insumo", use_container_width=True):
-        if tipo and cantidad and verificado:
-            try:
-                cant_val = float(cantidad)
-                if enviar_datos_formulario(id_siguiente, tipo, medidas, eficiencia, clase, equipo, cant_val, verificado, observaciones):
-                    registrar_movimiento("REGISTRO", id_siguiente, f"Creado: {tipo} | Stock: {cantidad}")
-                    st.success("Insumo guardado de forma permanente.")
-                    st.rerun()
-            except ValueError:
-                st.error("Por favor, introduce un número válido en Cantidad Actual.")
-        else:
-            st.warning("Por favor llena los campos obligatorios (Tipo, Cantidad y Verificado Por).")
-else:
     if b_col1.button("💾 Guardar Cambios", use_container_width=True):
         try:
-            cant_val = float(cantidad)
+            # 1. Capturamos los valores nuevos de las cajas de texto, NO los guardados en memoria
+            nueva_cantidad = float(cantidad)
+            
+            # 2. Debemos enviar lo que está en las variables actuales (que capturan el texto de los campos)
             if verificado:
-                # Recuperamos los valores de texto estáticos guardados de forma segura en la sesión
-                t_fijo = st.session_state.edit_datos.get("Tipo Insumo", "")
-                m_fijo = st.session_state.edit_datos.get("Medidas", "")
-                e_fijo = st.session_state.edit_datos.get("Eficiencia", "")
-                c_fijo = st.session_state.edit_datos.get("Clase", "")
-                eq_fijo = st.session_state.edit_datos.get("Equipo", "")
-                
-                if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
-                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Obs: {observaciones}")
+                if enviar_datos_formulario(
+                    st.session_state.edit_id, 
+                    tipo,       # Variable actualizada del campo
+                    medidas,    # Variable actualizada del campo
+                    eficiencia, # Variable actualizada del campo
+                    clase,      # Variable actualizada del campo
+                    equipo,     # Variable actualizada del campo
+                    nueva_cantidad, 
+                    verificado, 
+                    observaciones
+                ):
+                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {nueva_cantidad} | Obs: {observaciones}")
                     st.session_state.edit_id = None
                     st.session_state.edit_datos = {}
                     st.success("Cambios sincronizados exitosamente.")
@@ -185,13 +178,6 @@ else:
                 st.warning("Debes indicar quién está verificando este cambio en 'Verificado Por'.")
         except ValueError:
             st.error("Por favor, introduce un número válido en Cantidad Actual.")
-            
-    if b_col2.button("❌ Cancelar Edición", use_container_width=True):
-        st.session_state.edit_id = None
-        st.session_state.edit_datos = {}
-        st.rerun()
-
-st.markdown("---")
 
 # --- PESTAÑAS DE VISTA DE DATOS ---
 tab_inv, tab_hist = st.tabs(["📋 Inventario Actual", "📜 Historial de Movimientos"])
