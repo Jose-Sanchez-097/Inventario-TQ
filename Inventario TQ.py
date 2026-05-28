@@ -21,13 +21,10 @@ try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiamos nombres de columnas
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # Búsqueda flexible de la columna ID
         columna_id_encontrada = [c for c in df_raw.columns if c.upper().strip() == "ID"]
-        
         if columna_id_encontrada:
             nombre_real_id = columna_id_encontrada[0]
             df_raw = df_raw.rename(columns={nombre_real_id: "ID"})
@@ -40,10 +37,14 @@ try:
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
-        # Filtro de duplicados (Nos quedamos con el último estado de cada ID)
+        # Consolidamos: Nos quedamos con la última fila/modificación de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
-        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
         
+        # 📋 ORDEN ALFABÉTICO POR TIPO DE INSUMO
+        if "Tipo Insumo" in df_db.columns:
+            df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
+            
+        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
     else:
         df_db = pd.DataFrame(columns=[
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
@@ -56,7 +57,6 @@ except Exception as e:
 
 # --- FUNCIÓN DE ESCRITURA MEDIANTE FORMULARIO ---
 def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_val, cant_val, verif_val, obs_val):
-    # ⚠️ REEMPLAZA ESTOS 'entry.XXXXXX' CON LOS TUYOS DEL FORMULARIO ⚠️
     form_data = {
         "entry.100001": str(id_val),       
         "entry.100002": str(tipo_val),     
@@ -119,7 +119,7 @@ if st.session_state.edit_id is None:
                 cant_val = float(cantidad)
                 if enviar_datos_formulario(id_siguiente, tipo, medidas, eficiencia, clase, equipo, cant_val, verificado, observaciones):
                     registrar_movimiento("REGISTRO", id_siguiente, f"Creado: {tipo} | Stock: {cantidad}")
-                    st.success("Insumo guardado de forma permanente en la base de datos.")
+                    st.success("Insumo guardado de forma permanente.")
                     st.rerun()
             except ValueError:
                 st.error("Por favor, introduce un número válido en Cantidad Actual.")
@@ -129,19 +129,22 @@ else:
     if b_col1.button("💾 Guardar Cambios", use_container_width=True):
         try:
             cant_val = float(cantidad)
-            idx = df_db[df_db["ID"] == st.session_state.edit_id].index[0]
-            
-            t_fijo = df_db.at[idx, "Tipo Insumo"] if "Tipo Insumo" in df_db.columns else ""
-            m_fijo = df_db.at[idx, "Medidas"] if "Medidas" in df_db.columns else ""
-            e_fijo = df_db.at[idx, "Eficiencia"] if "Eficiencia" in df_db.columns else ""
-            c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
-            eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
-            
-            if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
-                registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
-                st.session_state.edit_id = None
-                st.success("Cambios sincronizados.")
-                st.rerun()
+            if verificado:
+                idx = df_db[df_db["ID"] == st.session_state.edit_id].index[0]
+                
+                t_fijo = df_db.at[idx, "Tipo Insumo"] if "Tipo Insumo" in df_db.columns else ""
+                m_fijo = df_db.at[idx, "Medidas"] if "Medidas" in df_db.columns else ""
+                e_fijo = df_db.at[idx, "Eficiencia"] if "Eficiencia" in df_db.columns else ""
+                c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
+                eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
+                
+                if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
+                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
+                    st.session_state.edit_id = None
+                    st.success("Cambios sincronizados exitosamente.")
+                    st.rerun()
+            else:
+                st.warning("Debes indicar quién está verificando este cambio en 'Verificado Por'.")
         except ValueError:
             st.error("Por favor, introduce un número válido en Cantidad Actual.")
             
@@ -155,33 +158,46 @@ st.markdown("---")
 tab_inv, tab_hist = st.tabs(["📋 Inventario Actual", "📜 Historial de Movimientos"])
 
 with tab_inv:
-    buscar = st.text_input("🔍 Buscar ítem en el inventario...")
+    # 🔍 DISEÑO REORGANIZADO: BUSCADOR Y MODIFICADOR LADO A LADO
+    search_col1, search_col2, search_col3 = st.columns([5, 3, 4])
+    
+    with search_col1:
+        buscar = st.text_input("🔍 Buscar ítem en el inventario...")
+        
+    with search_col2:
+        id_seleccionar = st.number_input("🆔 ID seleccionado para modificar:", min_value=1, step=1, key="id_control")
+        
+    with search_col3:
+        st.write("##") # Espaciador estético para alinear el botón verticalmente
+        if st.button("✏️ Modificar Atributo", use_container_width=True):
+            if id_seleccionar in df_db["ID"].values:
+                st.session_state.edit_id = id_seleccionar
+                st.markup_id = id_seleccionar
+                st.rerun()
+            else:
+                st.error("El ID seleccionado no existe en el inventario.")
+
     df_filtrado = df_db.copy()
     
-    # Aplicar buscador si el usuario escribe algo
     if buscar:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
+    # --- LISTADO HORIZONTAL ALFABÉTICO ---
     if not df_filtrado.empty:
-        # --- NUEVA ESTRUCTURA VISUAL HORIZONTAL ---
         for index, row in df_filtrado.iterrows():
             try:
                 cant_actual = float(row.get("Cant. Actual", 0))
             except:
                 cant_actual = 0
             
-            # Alerta visual si el stock es bajo (< 5 unidades)
             if cant_actual < 5:
-                titulo_tarjeta = f"⚠️ ID {row['ID']}: {row.get('Tipo Insumo', 'N/A')} (Stock Bajo)"
+                titulo_tarjeta = f"⚠️ [ID {row['ID']}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico)"
             else:
-                titulo_tarjeta = f"📦 ID {row['ID']}: {row.get('Tipo Insumo', 'N/A')}"
+                titulo_tarjeta = f"📦 [ID {row['ID']}] {row.get('Tipo Insumo', 'N/A')}"
             
-            # Cada ítem es un bloque horizontal colapsable
             with st.expander(titulo_tarjeta, expanded=True):
-                # Creamos 7 columnas horizontales fijas para los datos
                 c1, c2, c3, c4, c5, c6, c7 = st.columns([2, 2, 2, 2, 2, 3, 2])
-                
                 with c1:
                     st.markdown(f"**Medidas:**\n\n{row.get('Medidas', 'N/A')}")
                 with c2:
@@ -191,7 +207,6 @@ with tab_inv:
                 with c4:
                     st.markdown(f"**Equipo:**\n\n{row.get('Equipo', 'N/A')}")
                 with c5:
-                    # Si el stock es bajo lo resalta en color naranja/rojo textualmente
                     if cant_actual < 5:
                         st.markdown(f"**🟢 Cant. Actual:**\n\n🔴 **{cant_actual}**")
                     else:
@@ -200,21 +215,33 @@ with tab_inv:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
                     st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
-        
+
+        # --- 🚨 SECCIÓN DE ELIMINACIÓN CON CONTRASEÑA ---
         st.write("---")
-        st.write("**⚠️ Acciones de Control:**")
+        st.subheader("🗑️ Zona de Eliminación de Insumos")
+        del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
         
-        act_col1, act_col2 = st.columns([3, 9])
-        id_seleccionar = act_col1.number_input("ID del Ítem para Modificar:", min_value=1, step=1, key="id_control")
-        
-        if act_col2.button("✏️ Cargar Ítem en el Formulario Superior", use_container_width=True):
-            if id_seleccionar in df_db["ID"].values:
-                st.session_state.edit_id = id_seleccionar
-                st.rerun()
-            else:
-                st.error("El ID seleccionado no existe en el inventario.")
+        with del_col1:
+            id_a_borrar = st.number_input("ID del Ítem a Borrar:", min_value=1, step=1, key="id_borrar")
+        with del_col2:
+            clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
+        with del_col3:
+            st.write("##")
+            if st.button("🔥 Confirmar Eliminación", use_container_width=True):
+                if clave_input == CONTRASENA_CORRECTA:
+                    if id_a_borrar in df_db["ID"].values:
+                        # Para borrar usando Google Forms, enviamos una fila con cantidad -1 (o flag especial) 
+                        # indicando que este ID fue descartado.
+                        if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
+                            registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
+                            st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
+                            st.rerun()
+                    else:
+                        st.error("El ID seleccionado no existe.")
+                else:
+                    st.error("Contraseña incorrecta. Acción denegada.")
     else:
-        st.info("El inventario está vacío o no hay coincidencias.")
+        st.info("El inventario está vacío o no hay coincidencias con la búsqueda.")
 
 with tab_hist:
     st.dataframe(st.session_state.historial, use_container_width=True, hide_index=True)
