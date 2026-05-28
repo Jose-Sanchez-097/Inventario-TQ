@@ -240,6 +240,7 @@ with tab_inv:
                     st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
 
         # --- SECCIÓN DE ELIMINACIÓN CON CONTRASEÑA ---
+        # --- 🚨 SECCIÓN DE ELIMINACIÓN CORREGIDA (ENVÍA EL ID REAL) ---
         st.write("---")
         st.subheader("🗑️ Zona de Eliminación de Insumos")
         del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
@@ -253,6 +254,7 @@ with tab_inv:
             if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 if clave_input == CONTRASENA_CORRECTA:
                     if id_a_borrar in df_db["ID"].values:
+                        # 💡 CAMBIO CRÍTICO: Pasamos 'id_a_borrar' en el primer parámetro en lugar de 'id_siguiente'
                         if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
                             registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
                             st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
@@ -261,8 +263,3 @@ with tab_inv:
                         st.error("El ID seleccionado no existe.")
                 else:
                     st.error("Contraseña incorrecta. Acción denegada.")
-    else:
-        st.info("El inventario está vacío o no hay coincidencias con la búsqueda.")
-
-with tab_hist:
-    st.dataframe(st.session_state.historial, use_container_width=True, hide_index=True)
