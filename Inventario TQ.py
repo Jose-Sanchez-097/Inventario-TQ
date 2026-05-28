@@ -15,7 +15,7 @@ URL_COMPLETA_GOOGLE = "https://docs.google.com/spreadsheets/d/TU_ID_AQUI/edit"
 
 # 2. ⚠️ CONFIGURA AQUÍ LOS DATOS DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 # Cambia 'viewform' por 'formResponse' en la URL base de tu formulario
-URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/TU_ID_DE_FORMULARIO_AQUI/formResponse"
+URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
 # --- LECTURA DIRECTA (ESTO YA FUNCIONA PERFECTO) ---
 try:
