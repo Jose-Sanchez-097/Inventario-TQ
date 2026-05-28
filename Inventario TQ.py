@@ -16,13 +16,12 @@ URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
-
-# --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA EVITAR KEYERROR 'CANT. ACTUAL') ---
+# --- LECTURA DIRECTA INTELIGENTE (ALINEADA Y CORREGIDA) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiamos nombres de columnas de espacios invisibles
+        # Limpiamos nombres de columnas quitando espacios ocultos
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
@@ -33,15 +32,14 @@ try:
         else:
             df_raw["ID"] = range(1, len(df_raw) + 1)
             
-        # 2. 🚨 SOLUCIÓN AL ERROR: Búsqueda flexible de la columna de Cantidad
+        # 2. Búsqueda flexible de la columna de Cantidad
         columna_cant_encontrada = [c for c in df_raw.columns if "CANT" in c.upper()]
         if columna_cant_encontrada:
             df_raw = df_raw.rename(columns={columna_cant_encontrada[0]: "Cant. Actual"})
         else:
-            # Si de verdad no existe, la creamos en 0 para que no rompa la app
             df_raw["Cant. Actual"] = 0
             
-        # 3. Búsqueda flexible de la columna Tipo Insumo (para el orden alfabético)
+        # 3. Búsqueda flexible de la columna Tipo Insumo
         columna_tipo_encontrada = [c for c in df_raw.columns if "TIPO" in c.upper() or "INSUMO" in c.upper()]
         if columna_tipo_encontrada:
             df_raw = df_raw.rename(columns={columna_tipo_encontrada[0]: "Tipo Insumo"})
@@ -50,7 +48,7 @@ try:
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         df_raw["Cant. Actual"] = pd.to_numeric(df_raw["Cant. Actual"], errors="coerce").fillna(0)
         
-        # Ordenamos cronológicamente por Marca temporal si existe
+        # Ordenamos cronológicamente si existe la marca de tiempo de Google
         if "Marca temporal" in df_raw.columns:
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
@@ -66,17 +64,6 @@ try:
         # ORDEN ALFABÉTICO FINAL
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
-            
-        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
-    else:
-        df_db = pd.DataFrame(columns=[
-            "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
-        ])
-        id_siguiente = 1
-
-except Exception as e:
-    st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
-    st.stop()
             
         # El ID siguiente siempre se calcula sumando 1 al máximo ID histórico que existió
         id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
@@ -94,15 +81,15 @@ except Exception as e:
 def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_val, cant_val, verif_val, obs_val):
     # ⚠️ REEMPLAZA ESTOS 'entry.XXXXXX' CON LOS TUYOS DEL FORMULARIO ⚠️
     form_data = {
-        "entry.939486531": str(id_val),       
-        "entry.1861198387": str(tipo_val),     
-        "entry.367765609": str(med_val),      
-        "entry.797414005": str(efic_val),     
-        "entry.1971304507": str(clase_val),    
-        "entry.36072344": str(eq_val),       
-        "entry.209965346": str(cant_val),     
-        "entry.80107347": str(verif_val),    
-        "entry.257529099": str(obs_val)       
+        "entry.100001": str(id_val),       
+        "entry.100002": str(tipo_val),     
+        "entry.100003": str(med_val),      
+        "entry.100004": str(efic_val),     
+        "entry.100005": str(clase_val),    
+        "entry.100006": str(eq_val),       
+        "entry.100007": str(cant_val),     
+        "entry.100008": str(verif_val),    
+        "entry.100009": str(obs_val)       
     }
     try:
         respuesta = requests.post(URL_FORM_RESPONSE, data=form_data)
@@ -204,7 +191,7 @@ with tab_inv:
         id_seleccionar = st.number_input("🆔 ID seleccionado para modificar:", min_value=1, step=1, key="id_control")
         
     with search_col3:
-        st.write("##") # Espaciador estético para alinear el botón verticalmente
+        st.write("##") # Espaciador para alinear el botón horizontalmente
         if st.button("✏️ Modificar Atributo", use_container_width=True):
             if id_seleccionar in df_db["ID"].values:
                 st.session_state.edit_id = id_seleccionar
