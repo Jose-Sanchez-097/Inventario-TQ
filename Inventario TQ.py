@@ -16,28 +16,41 @@ URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
-# --- LECTURA DIRECTA INTELIGENTE (CONSOLIDADA Y SIN ERRORES) ---
+
+# --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA EVITAR KEYERROR 'CANT. ACTUAL') ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiamos nombres de columnas quitando espacios ocultos
+        # Limpiamos nombres de columnas de espacios invisibles
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # Búsqueda flexible de la columna ID
+        # 1. Búsqueda flexible de la columna ID
         columna_id_encontrada = [c for c in df_raw.columns if c.upper().strip() == "ID"]
         if columna_id_encontrada:
-            nombre_real_id = columna_id_encontrada[0]
-            df_raw = df_raw.rename(columns={nombre_real_id: "ID"})
+            df_raw = df_raw.rename(columns={columna_id_encontrada[0]: "ID"})
         else:
             df_raw["ID"] = range(1, len(df_raw) + 1)
+            
+        # 2. 🚨 SOLUCIÓN AL ERROR: Búsqueda flexible de la columna de Cantidad
+        columna_cant_encontrada = [c for c in df_raw.columns if "CANT" in c.upper()]
+        if columna_cant_encontrada:
+            df_raw = df_raw.rename(columns={columna_cant_encontrada[0]: "Cant. Actual"})
+        else:
+            # Si de verdad no existe, la creamos en 0 para que no rompa la app
+            df_raw["Cant. Actual"] = 0
+            
+        # 3. Búsqueda flexible de la columna Tipo Insumo (para el orden alfabético)
+        columna_tipo_encontrada = [c for c in df_raw.columns if "TIPO" in c.upper() or "INSUMO" in c.upper()]
+        if columna_tipo_encontrada:
+            df_raw = df_raw.rename(columns={columna_tipo_encontrada[0]: "Tipo Insumo"})
         
-        # Convertimos los IDs y las Cantidades a números de forma segura antes de filtrar
+        # Convertimos de forma segura a números
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         df_raw["Cant. Actual"] = pd.to_numeric(df_raw["Cant. Actual"], errors="coerce").fillna(0)
         
-        # Ordenamos cronológicamente si existe la marca de tiempo de Google
+        # Ordenamos cronológicamente por Marca temporal si existe
         if "Marca temporal" in df_raw.columns:
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
@@ -46,13 +59,24 @@ try:
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
         # FILTRO CRÍTICO: Expulsamos de la pantalla los ítems dados de baja
-        if not df_db.empty:
+        if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
-        # ORDEN ALFABÉTICO FINAL DE LO QUE QUEDÓ ACTIVO
+        # ORDEN ALFABÉTICO FINAL
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
+            
+        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
+    else:
+        df_db = pd.DataFrame(columns=[
+            "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
+        ])
+        id_siguiente = 1
+
+except Exception as e:
+    st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
+    st.stop()
             
         # El ID siguiente siempre se calcula sumando 1 al máximo ID histórico que existió
         id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
