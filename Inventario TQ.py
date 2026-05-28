@@ -19,7 +19,8 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvz
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
-    df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
+    # Sustituye la línea de df_raw = pd.read_csv(...) por esta:
+df_raw = pd.read_csv(URL_LECTURA_DIRECTA + "&t=" + str(datetime.now().timestamp()))
     
     if not df_raw.empty:
         # Limpiamos espacios en blanco de los encabezados
@@ -146,7 +147,10 @@ with col4:
     observaciones = st.text_input("Observaciones", value=str(st.session_state.edit_datos.get("Observaciones", "")) if st.session_state.edit_id else "")
 # --- BOTONES DE ACCIÓN ---
 b_col1, b_col2, b_col3 = st.columns([2, 2, 8])
-
+# Añade este botón debajo de "❌ Cancelar Edición" o cerca de los botones de acción
+if st.button("🔄 Actualizar Inventario"):
+    st.cache_data.clear()
+    st.rerun()
 if st.session_state.edit_id is None:
     if b_col1.button("✨ Agregar Insumo", use_container_width=True):
         if tipo and cantidad and verificado:
