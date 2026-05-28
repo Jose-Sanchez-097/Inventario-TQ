@@ -18,6 +18,7 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 
 # --- LECTURA DIRECTA INTELIGENTE ---
 # --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA ELIMINACIONES) ---
+# --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA ELIMINACIONES) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
@@ -48,7 +49,6 @@ try:
         
         # 🚨 FILTRO CRÍTICO: Expulsamos de la pantalla los ítems dados de baja
         if not df_db.empty:
-            # Eliminamos si el Tipo de Insumo se marcó como "ELIMINADO" o si su stock quedó en -1
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
@@ -63,6 +63,10 @@ try:
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
         ])
         id_siguiente = 1
+
+except Exception as e:
+    st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
+    st.stop()
 
 except Exception as e:
     st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
