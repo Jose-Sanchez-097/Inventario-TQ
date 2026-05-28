@@ -9,17 +9,18 @@ st.title("📦 Control de Inventario e Historial TQ")
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
-# ⚠️ REEMPLAZA ESTO CON EL ID LARGO DE TU HOJA DE CÁLCULO ⚠️
-ID_HOJA = "TU_ID_DE_GOOGLE_SHEETS_AQUI"
-NOMB_HOJA = "Sheet1"
+# ⚠️ PEGA AQUÍ EL ENLACE COMPLETO DE TU NAVEGADOR ENTRE LAS COMILLAS ⚠️
+URL_COMPLETA_GOOGLE = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit?gid=0#gid=0"
 
-# URL de exportación directa en formato CSV y URL de envío de datos
-URL_LECTURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/gviz/tq?tqx=out:csv&sheet={NOMB_HOJA}"
-URL_ESCRITURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/edit"
-
-# --- LECTURA DIRECTA DE LA BASE DE DATOS ---
+# --- TRADUCCIÓN AUTOMÁTICA A FORMATO DE LECTURA WEB ---
 try:
-    df_db = pd.read_csv(URL_LECTURA)
+    # Limpiamos el enlace para asegurar que termine en la exportación CSV correcta
+    base_url = URL_COMPLETA_GOOGLE.split("/edit")[0]
+    URL_LECTURA_DIRECTA = f"{base_url}/export?format=csv"
+    
+    # Lectura del archivo
+    df_db = pd.read_csv(URL_LECTURA_DIRECTA)
+    
     if not df_db.empty:
         df_db.columns = [c.strip() for c in df_db.columns]
         df_db = df_db.dropna(how="all")
@@ -31,16 +32,18 @@ try:
         ])
         id_siguiente = 1
 except Exception as e:
-    st.error(f"Error crítico al conectar con Google Sheets de forma directa. Detalles: {e}")
+    st.error(f"Error crítico al conectar con Google Sheets. Detalles: {e}")
+    st.info("Asegúrate de que la hoja en Google Sheets esté compartida como 'Cualquier persona con el enlace' en modo Editor.")
     st.stop()
 
 # --- FUNCIÓN AUXILIAR PARA GUARDAR EN LA NUBE ---
 def guardar_en_google_sheets(df_para_guardar):
-    """ Utiliza el backend de Streamlit para reescribir los datos usando actualización directa """
     try:
         from streamlit_gsheets import GSheetsConnection
         conexion_directa = st.connection("gsheets", type=GSheetsConnection)
-        conexion_directa.update(spreadsheet=URL_ESCRITURA, worksheet=NOMB_HOJA, data=df_para_guardar)
+        # Usamos el enlace original limpio para reescribir
+        url_limpia_escritura = URL_COMPLETA_GOOGLE.split("/edit")[0] + "/edit"
+        conexion_directa.update(spreadsheet=url_limpia_escritura, worksheet="Sheet1", data=df_para_guardar)
         return True
     except Exception as error_escribir:
         st.error(f"Error al escribir en la hoja de cálculo: {error_escribir}")
