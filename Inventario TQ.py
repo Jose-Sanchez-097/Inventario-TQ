@@ -10,50 +10,51 @@ st.title("📦 Control de Inventario e Historial TQ")
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
-# 1. ⚠️ PEGA AQUÍ TU ENLACE QUE TERMINA EN export?format=csv ⚠️
+# 1. ⚠️ TU ENLACE DE LECTURA (Asegúrate de incluir el &gid=XXXX si usas la pestaña del formulario) ⚠️
 URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit?gid=1927911440#gid=1927911440"
 
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
-# --- LECTURA DIRECTA Y CONSOLIDACIÓN ---
+# --- LECTURA DIRECTA INTELIGENTE ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiar espacios raros o invisibles en los nombres de las columnas
+        # Limpiamos nombres de columnas (quitamos espacios en los extremos)
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # BUSQUEDA INTELIGENTE DE LA COLUMNA ID (Evita el KeyError de raíz)
-        columna_id_encontrada = [c for c in df_raw.columns if c.upper() == "ID"]
+        # Búsqueda flexible: detecta "ID", "id", "Id", "ID " etc.
+        columna_id_encontrada = [c for c in df_raw.columns if c.upper().strip() == "ID"]
         
         if columna_id_encontrada:
             nombre_real_id = columna_id_encontrada[0]
-            # Renombramos la columna internamente a "ID" en mayúsculas por si acaso
             df_raw = df_raw.rename(columns={nombre_real_id: "ID"})
-            df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
-            
-            # --- CONSOLIDACIÓN DE REGISTROS (Formulario) ---
-            # Si existe "Marca temporal", ordenamos cronológicamente
-            if "Marca temporal" in df_raw.columns:
-                df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
-                df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
-            
-            # Conservamos solo el último estado de cada ID (la última modificación)
-            df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
-            id_siguiente = int(df_raw["ID"].max()) + 1
         else:
-            # Si de verdad no existe la columna ID en tu Excel actual, la creamos
-            st.warning("⚠️ No se encontró la columna 'ID' en tu hoja. Creando una estructura temporal...")
+            # Si Google Forms no creó la columna ID o la pestaña está vacía, 
+            # la asignamos silenciosamente usando el índice de la fila + 1
             df_raw["ID"] = range(1, len(df_raw) + 1)
-            df_db = df_raw.copy()
-            id_siguiente = len(df_raw) + 1
+        
+        # Forzamos a que sea un número entero de forma segura
+        df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
+        
+        # Ordenamos por Marca temporal si existe para dejar lo más nuevo abajo
+        if "Marca temporal" in df_raw.columns:
+            df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
+            df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
+        
+        # Consolidamos el inventario: se queda con la última edición de cada ID
+        df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
+        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
+        
     else:
+        # Estructura limpia si el Excel está completamente en blanco
         df_db = pd.DataFrame(columns=[
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
         ])
         id_siguiente = 1
+
 except Exception as e:
     st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
     st.stop()
@@ -76,7 +77,7 @@ def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_v
         respuesta = requests.post(URL_FORM_RESPONSE, data=form_data)
         return True
     except Exception as e:
-        st.error(f"Error de red al sincronizar con la nube: {e}")
+        st.error(f"Error de red al enviar datos: {e}")
         return False
 
 # Historial en memoria de la sesión
@@ -162,9 +163,11 @@ with tab_inv:
     buscar = st.text_input("🔍 Buscar ítem en el inventario...")
     df_filtrado = df_db.copy()
     
-    # Ocultamos la marca temporal de la interfaz para que se vea limpio en el celular
-    if "Marca temporal" in df_filtrado.columns:
-        df_filtrado = df_filtrado.drop(columns=["Marca temporal"])
+    # Ocultamos columnas de control de Google de la vista de la app
+    columnas_a_borrar = ["Marca temporal", "Timestamp"]
+    for col in columnas_a_borrar:
+        if col in df_filtrado.columns:
+            df_filtrado = df_filtrado.drop(columns=[col])
     
     if buscar:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
