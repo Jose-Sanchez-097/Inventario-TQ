@@ -203,23 +203,31 @@ with tab_inv:
     with search_col1:
         buscar = st.text_input("🔍 Buscar ítem en el inventario...")
         
+    df_filtrado = df_db.copy()
+    if buscar:
+        mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
+        df_filtrado = df_filtrado[mask]
+
+    # --- MAPEEO DE POSICIÓN VISUAL A ID REAL ---
+    # Creamos un diccionario para saber qué [#] corresponde a qué ID Real
+    mapa_posiciones_id = {}
+    if not df_filtrado.empty:
+        for i, (idx, row) in enumerate(df_filtrado.iterrows(), start=1):
+            mapa_posiciones_id[i] = int(row["ID"])
+
     with search_col2:
-        id_seleccionar = st.number_input("🆔 ID de la base de datos a modificar:", min_value=1, step=1, key="id_control")
+        # Ahora el usuario digita el número de posición (#) que ve en la tarjeta
+        pos_seleccionar = st.number_input("🆔 N° de posición (#) a modificar:", min_value=1, step=1, key="pos_control")
         
     with search_col3:
         st.write("##") 
         if st.button("✏️ Modificar Atributo", use_container_width=True):
-            if id_seleccionar in df_db["ID"].values:
-                st.session_state.edit_id = id_seleccionar
+            # Verificamos si la posición ingresada existe en la pantalla
+            if pos_seleccionar in mapa_posiciones_id:
+                st.session_state.edit_id = mapa_posiciones_id[pos_seleccionar]
                 st.rerun()
             else:
-                st.error("El ID seleccionado no existe en el inventario.")
-
-    df_filtrado = df_db.copy()
-    
-    if buscar:
-        mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
-        df_filtrado = df_filtrado[mask]
+                st.error("El número de posición seleccionado no aparece en la lista actual.")
 
     # --- RENDERIZADO DE TARJETAS EXPANSIBLES CON NUMERACIÓN VIRTUAL ---
     if not df_filtrado.empty:
@@ -259,7 +267,6 @@ with tab_inv:
                     st.markdown(f"**📝 Obs (ID: {row['ID']}):**\n\n{row.get('Observaciones', 'N/A')}")
             
             posicion_visual += 1
-
         # --- SECCIÓN DE ELIMINACIÓN REAL ---
         st.write("---")
         st.subheader("🗑️ Zona de Eliminación de Insumos")
