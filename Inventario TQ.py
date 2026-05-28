@@ -62,8 +62,9 @@ try:
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
         # ORDEN ALFABÉTICO FINAL
+        # --- REEMPLÁZALO POR ESTE BLOQUE CORREGIDO ---
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
-            df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
+            df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.astype(str).str.lower(), ascending=True)
             
         # El ID siguiente siempre se calcula sumando 1 al máximo ID histórico que existió
         id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
