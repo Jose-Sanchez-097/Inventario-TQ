@@ -11,7 +11,7 @@ st.title("📦 Control de Inventario e Historial TQ")
 CONTRASENA_CORRECTA = "TQ2026"
 
 # 1. ⚠️ TU ENLACE DE LECTURA (Asegúrate de incluir el &gid=XXXX si usas la pestaña del formulario) ⚠️
-URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit?gid=1927911440#gid=1927911440"
+URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit?gid=1927911440"
 
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
