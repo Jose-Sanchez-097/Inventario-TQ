@@ -19,14 +19,13 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvz
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
-    # Sustituye la línea de df_raw = pd.read_csv(...) por esta:
-df_raw = pd.read_csv(URL_LECTURA_DIRECTA + "&t=" + str(datetime.now().timestamp()))
+    # Asegúrate de que esta línea y las siguientes tengan 4 espacios de sangría (indentación)
+    df_raw = pd.read_csv(URL_LECTURA_DIRECTA + "&t=" + str(datetime.now().timestamp()))
     
     if not df_raw.empty:
         # Limpiamos espacios en blanco de los encabezados
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
-        
         mapa_columnas = {}
         for c in df_raw.columns:
             c_upper = c.upper()
