@@ -12,17 +12,20 @@ st.title("📦 Control de Inventario e Historial TQ")
 CONTRASENA_CORRECTA = "TQ2026"
 
 # 1. Enlace de lectura directo en formato CSV
-URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440"
-
+# Añadimos un timestamp dinámico para que no se guarde en caché
+URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440&timestamp=" + str(datetime.now().timestamp())
 # 2. Enlace de respuesta del formulario (limpio para peticiones POST)
 URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
     # Asegúrate de que esta línea y las siguientes tengan 4 espacios de sangría (indentación)
-    df_raw = pd.read_csv(URL_LECTURA_DIRECTA + "&t=" + str(datetime.now().timestamp()))
+    try:
+    # Ahora la URL ya lleva el timestamp, así que leemos directamente
+    df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
+        # ... resto de tu código de limpieza ...
         # Limpiamos espacios en blanco de los encabezados
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
