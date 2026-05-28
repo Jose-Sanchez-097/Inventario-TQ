@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import requests
 
 # Configuración de la página web
 st.set_page_config(page_title="Inventario TQ Online", layout="wide")
@@ -11,27 +10,22 @@ st.title("📦 Control de Inventario e Historial TQ")
 CONTRASENA_CORRECTA = "TQ2026"
 
 # ⚠️ REEMPLAZA ESTO CON EL ID LARGO DE TU HOJA DE CÁLCULO ⚠️
-ID_HOJA = "1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI"
+ID_HOJA = "TU_ID_DE_GOOGLE_SHEETS_AQUI"
 NOMB_HOJA = "Sheet1"
 
-# URL de exportación directa en formato CSV para lectura rápida y URL de envío de datos
+# URL de exportación directa en formato CSV y URL de envío de datos
 URL_LECTURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/gviz/tq?tqx=out:csv&sheet={NOMB_HOJA}"
 URL_ESCRITURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/edit"
 
 # --- LECTURA DIRECTA DE LA BASE DE DATOS ---
 try:
-    # Lee la hoja de cálculo directamente a través de la API de visualización de Google como CSV
     df_db = pd.read_csv(URL_LECTURA)
-    
-    # Limpieza y formateo de los datos leídos
     if not df_db.empty:
-        # Renombrar columnas por si acaso Google Sheets añade espacios extras
         df_db.columns = [c.strip() for c in df_db.columns]
         df_db = df_db.dropna(how="all")
         df_db["ID"] = pd.to_numeric(df_db["ID"], errors="coerce").fillna(0).astype(int)
         id_siguiente = int(df_db["ID"].max()) + 1
     else:
-        # Si la hoja está completamente vacía, estructuramos las columnas manualmente
         df_db = pd.DataFrame(columns=[
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
         ])
@@ -45,14 +39,12 @@ def guardar_en_google_sheets(df_para_guardar):
     """ Utiliza el backend de Streamlit para reescribir los datos usando actualización directa """
     try:
         from streamlit_gsheets import GSheetsConnection
-       # Forzamos a la conexión a usar la URL de escritura directa
         conexion_directa = st.connection("gsheets", type=GSheetsConnection)
-        conexion_directa.update(spreadsheet=f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/edit", worksheet=NOMB_HOJA, data=df_para_guardar)
+        conexion_directa.update(spreadsheet=URL_ESCRITURA, worksheet=NOMB_HOJA, data=df_para_guardar)
         return True
-    except:
-        st.error("No se pudo escribir en la hoja. Verifica que la librería 'st-gsheets-connection' siga instalada en requirements.txt")
+    except Exception as error_escribir:
+        st.error(f"Error al escribir en la hoja de cálculo: {error_escribir}")
         return False
-    except:
 
 # Historial en memoria de la sesión
 if "historial" not in st.session_state:
@@ -111,7 +103,6 @@ if st.session_state.edit_id is None:
         else:
             st.warning("Por favor llena los campos obligatorios (Tipo, Cantidad y Verificado Por).")
 else:
-    # Cargar datos visuales si estamos editando
     if b_col1.button("💾 Guardar Cambios", use_container_width=True):
         try:
             cant_val = float(cantidad)
