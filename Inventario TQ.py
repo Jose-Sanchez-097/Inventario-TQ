@@ -54,6 +54,13 @@ try:
                 mapa_columnas[c] = "Marca temporal"
         
         df_raw = df_raw.rename(columns={k: v for k, v in mapa_columnas.items() if v not in df_raw.columns or k == v})
+        # --- PARCHE DE SINCRONIZACIÓN EN TIEMPO REAL ---
+        if st.session_state.get("edit_id") is not None:
+            # Si acabamos de editar algo en esta sesión, actualizamos el dataframe localmente
+            # para que el usuario vea el cambio al instante
+            mask = df_raw["ID"] == st.session_state.edit_id
+            if mask.any():
+                df_raw.loc[mask, "Cant. Actual"] = float(st.session_state.edit_datos.get("Cant. Actual", 0))
         
         columnas_obligatorias = ["ID", "Tipo Insumo", "Cant. Actual", "Marca temporal"]
         for col in columnas_obligatorias:
