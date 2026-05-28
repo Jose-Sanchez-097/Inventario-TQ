@@ -17,10 +17,6 @@ URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9
 # 2. Enlace de respuesta del formulario (limpio para peticiones POST)
 URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
 
-# --- LECTURA DIRECTA INTEGRAL MAPEADA ---
-try:
-    # Asegúrate de que esta línea y las siguientes tengan 4 espacios de sangría (indentación)
-    try:
         # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
     # Esta línea y todas las siguientes deben tener 4 espacios de sangría (o una tabulación)
