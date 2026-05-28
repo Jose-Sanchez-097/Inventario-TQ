@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+st.cache_data.clear() # Esto obliga a recargar los datos del Sheets en cada ejecución
 from datetime import datetime
 import requests
 
