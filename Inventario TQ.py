@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import requests
 
 # Configuración de la página web
 st.set_page_config(page_title="Inventario TQ Online", layout="wide")
@@ -10,22 +10,48 @@ st.title("📦 Control de Inventario e Historial TQ")
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
-# --- CONEXIÓN AUTOMÁTICA A GOOGLE SHEETS (VÍA SECRETS) ---
+# ⚠️ REEMPLAZA ESTO CON EL ID LARGO DE TU HOJA DE CÁLCULO ⚠️
+ID_HOJA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit"
+NOMB_HOJA = "Sheet1"
+
+# URL de exportación directa en formato CSV para lectura rápida y URL de envío de datos
+URL_LECTURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/gviz/tq?tqx=out:csv&sheet={NOMB_HOJA}"
+URL_ESCRITURA = f"https://docs.google.com/spreadsheets/d/{ID_HOJA}/edit"
+
+# --- LECTURA DIRECTA DE LA BASE DE DATOS ---
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    # Lee los datos directamente usando la configuración segura del servidor
-    df_db = conn.read(worksheet="Sheet1", ttl=0)
+    # Lee la hoja de cálculo directamente a través de la API de visualización de Google como CSV
+    df_db = pd.read_csv(URL_LECTURA)
     
-    # Limpieza de datos iniciales
+    # Limpieza y formateo de los datos leídos
     if not df_db.empty:
-        df_db = df_db.dropna(how="all")  # Eliminar filas completamente vacías
+        # Renombrar columnas por si acaso Google Sheets añade espacios extras
+        df_db.columns = [c.strip() for c in df_db.columns]
+        df_db = df_db.dropna(how="all")
         df_db["ID"] = pd.to_numeric(df_db["ID"], errors="coerce").fillna(0).astype(int)
         id_siguiente = int(df_db["ID"].max()) + 1
     else:
+        # Si la hoja está completamente vacía, estructuramos las columnas manualmente
+        df_db = pd.DataFrame(columns=[
+            "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
+        ])
         id_siguiente = 1
 except Exception as e:
-    st.error(f"Error de acceso a la Base de Datos. Asegúrate de haber guardado la URL en la sección 'Secrets' de Streamlit.")
+    st.error(f"Error crítico al conectar con Google Sheets de forma directa. Detalles: {e}")
     st.stop()
+
+# --- FUNCIÓN AUXILIAR PARA GUARDAR EN LA NUBE ---
+def guardar_en_google_sheets(df_para_guardar):
+    """ Utiliza el backend de Streamlit para reescribir los datos usando actualización directa """
+    try:
+        from streamlit_gsheets import GSheetsConnection
+        conexion_directa = st.connection("gsheets", type=GSheetsConnection)
+        conexion_directa.update(spreadsheet=URL_ESCRITURA, worksheet=NOMB_HOJA, data=df_para_guardar)
+        return True
+    except:
+        # Alternativa de respaldo por si falla la librería de actualización
+        st.error("No se pudo escribir en la hoja. Verifica que la librería 'st-gsheets-connection' siga instalada en requirements.txt")
+        return False
 
 # Historial en memoria de la sesión
 if "historial" not in st.session_state:
@@ -75,15 +101,16 @@ if st.session_state.edit_id is None:
                     "Cant. Actual": cant_val, "Verificado Por": verificado, "Observaciones": observaciones
                 }
                 df_actualizado = pd.concat([df_db, pd.DataFrame([nuevo_item])], ignore_index=True)
-                conn.update(worksheet="Sheet1", data=df_actualizado)
-                registrar_movimiento("REGISTRO", id_siguiente, f"Creado: {tipo} | Equipo: {equipo} | Stock: {cantidad}")
-                st.success("Insumo guardado exitosamente en la nube.")
-                st.rerun()
+                if guardar_en_google_sheets(df_actualizado):
+                    registrar_movimiento("REGISTRO", id_siguiente, f"Creado: {tipo} | Equipo: {equipo} | Stock: {cantidad}")
+                    st.success("Insumo guardado exitosamente en la nube.")
+                    st.rerun()
             except ValueError:
                 st.error("Por favor, introduce un número válido en Cantidad Actual.")
         else:
             st.warning("Por favor llena los campos obligatorios (Tipo, Cantidad y Verificado Por).")
 else:
+    # Cargar datos visuales si estamos editando
     if b_col1.button("💾 Guardar Cambios", use_container_width=True):
         try:
             cant_val = float(cantidad)
@@ -92,11 +119,11 @@ else:
             df_db.at[idx, "Verificado Por"] = verificado
             df_db.at[idx, "Observaciones"] = observaciones
             
-            conn.update(worksheet="Sheet1", data=df_db)
-            registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
-            st.session_state.edit_id = None
-            st.success("Cambios actualizados en la nube.")
-            st.rerun()
+            if guardar_en_google_sheets(df_db):
+                registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
+                st.session_state.edit_id = None
+                st.success("Cambios actualizados en la nube.")
+                st.rerun()
         except ValueError:
             st.error("Por favor, introduce un número válido en Cantidad Actual.")
             
@@ -146,10 +173,10 @@ with tab_inv:
             if clave_del == CONTRASENA_CORRECTA:
                 if id_seleccionar in df_db["ID"].values:
                     df_recortado = df_db[df_db["ID"] != id_seleccionar]
-                    conn.update(worksheet="Sheet1", data=df_recortado)
-                    registrar_movimiento("ELIMINACIÓN", id_seleccionar, "Eliminado de la base de datos.")
-                    st.success(f"ID {id_seleccionar} eliminado.")
-                    st.rerun()
+                    if guardar_en_google_sheets(df_recortado):
+                        registrar_movimiento("ELIMINACIÓN", id_seleccionar, "Eliminado de la base de datos.")
+                        st.success(f"ID {id_seleccionar} eliminado.")
+                        st.rerun()
                 else:
                     st.error("El ID seleccionado no existe.")
             else:
