@@ -16,9 +16,7 @@ URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
-# --- LECTURA DIRECTA INTELIGENTE ---
-# --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA ELIMINACIONES) ---
-# --- LECTURA DIRECTA INTELIGENTE (CORREGIDA PARA ELIMINACIONES) ---
+# --- LECTURA DIRECTA INTELIGENTE (CONSOLIDADA Y SIN ERRORES) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
@@ -47,12 +45,12 @@ try:
         # Consolidamos: Nos quedamos estrictamente con el ÚLTIMO movimiento de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
-        # 🚨 FILTRO CRÍTICO: Expulsamos de la pantalla los ítems dados de baja
+        # FILTRO CRÍTICO: Expulsamos de la pantalla los ítems dados de baja
         if not df_db.empty:
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
-        # 📋 ORDEN ALFABÉTICO FINAL DE LO QUE QUEDÓ ACTIVO
+        # ORDEN ALFABÉTICO FINAL DE LO QUE QUEDÓ ACTIVO
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
             
@@ -68,36 +66,19 @@ except Exception as e:
     st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
     st.stop()
 
-except Exception as e:
-    st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
-    st.stop()
-        # 📋 ORDEN ALFABÉTICO POR TIPO DE INSUMO
-        if "Tipo Insumo" in df_db.columns:
-            df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
-            
-        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
-    else:
-        df_db = pd.DataFrame(columns=[
-            "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
-        ])
-        id_siguiente = 1
-
-except Exception as e:
-    st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
-    st.stop()
-
 # --- FUNCIÓN DE ESCRITURA MEDIANTE FORMULARIO ---
 def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_val, cant_val, verif_val, obs_val):
+    # ⚠️ REEMPLAZA ESTOS 'entry.XXXXXX' CON LOS TUYOS DEL FORMULARIO ⚠️
     form_data = {
-        "entry.100001": str(id_val),       
-        "entry.100002": str(tipo_val),     
-        "entry.100003": str(med_val),      
-        "entry.100004": str(efic_val),     
-        "entry.100005": str(clase_val),    
-        "entry.100006": str(eq_val),       
-        "entry.100007": str(cant_val),     
-        "entry.100008": str(verif_val),    
-        "entry.100009": str(obs_val)       
+        "entry.939486531": str(id_val),       
+        "entry.1861198387": str(tipo_val),     
+        "entry.367765609": str(med_val),      
+        "entry.797414005": str(efic_val),     
+        "entry.1971304507": str(clase_val),    
+        "entry.36072344": str(eq_val),       
+        "entry.209965346": str(cant_val),     
+        "entry.80107347": str(verif_val),    
+        "entry.257529099": str(obs_val)       
     }
     try:
         respuesta = requests.post(URL_FORM_RESPONSE, data=form_data)
@@ -189,7 +170,7 @@ st.markdown("---")
 tab_inv, tab_hist = st.tabs(["📋 Inventario Actual", "📜 Historial de Movimientos"])
 
 with tab_inv:
-    # 🔍 DISEÑO REORGANIZADO: BUSCADOR Y MODIFICADOR LADO A LADO
+    # DISEÑO: BUSCADOR Y MODIFICADOR LADO A LADO
     search_col1, search_col2, search_col3 = st.columns([5, 3, 4])
     
     with search_col1:
@@ -203,7 +184,6 @@ with tab_inv:
         if st.button("✏️ Modificar Atributo", use_container_width=True):
             if id_seleccionar in df_db["ID"].values:
                 st.session_state.edit_id = id_seleccionar
-                st.markup_id = id_seleccionar
                 st.rerun()
             else:
                 st.error("El ID seleccionado no existe en el inventario.")
@@ -247,7 +227,7 @@ with tab_inv:
                 with c7:
                     st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
 
-        # --- 🚨 SECCIÓN DE ELIMINACIÓN CON CONTRASEÑA ---
+        # --- SECCIÓN DE ELIMINACIÓN CON CONTRASEÑA ---
         st.write("---")
         st.subheader("🗑️ Zona de Eliminación de Insumos")
         del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
@@ -261,8 +241,6 @@ with tab_inv:
             if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 if clave_input == CONTRASENA_CORRECTA:
                     if id_a_borrar in df_db["ID"].values:
-                        # Para borrar usando Google Forms, enviamos una fila con cantidad -1 (o flag especial) 
-                        # indicando que este ID fue descartado.
                         if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
                             registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
                             st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
@@ -276,4 +254,3 @@ with tab_inv:
 
 with tab_hist:
     st.dataframe(st.session_state.historial, use_container_width=True, hide_index=True)
-    
