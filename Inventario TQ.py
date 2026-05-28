@@ -10,9 +10,9 @@ st.title("📦 Control de Inventario e Historial TQ")
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
-
-# ⚠️ ENLACE CORREGIDO Y CORRESPONDIENTE A TU HOJA DE RESPUESTAS ⚠️
+# 1. ⚠️ TU ENLACE DE LECTURA DE RESPUESTAS CORREGIDO ⚠️
 URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440"
+
 # 2. ⚠️ LA URL DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
@@ -21,35 +21,30 @@ try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiamos nombres de columnas (quitamos espacios en los extremos)
+        # Limpiamos nombres de columnas
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # Búsqueda flexible: detecta "ID", "id", "Id", "ID " etc.
+        # Búsqueda flexible de la columna ID
         columna_id_encontrada = [c for c in df_raw.columns if c.upper().strip() == "ID"]
         
         if columna_id_encontrada:
             nombre_real_id = columna_id_encontrada[0]
             df_raw = df_raw.rename(columns={nombre_real_id: "ID"})
         else:
-            # Si Google Forms no creó la columna ID o la pestaña está vacía, 
-            # la asignamos silenciosamente usando el índice de la fila + 1
             df_raw["ID"] = range(1, len(df_raw) + 1)
         
-        # Forzamos a que sea un número entero de forma segura
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         
-        # Ordenamos por Marca temporal si existe para dejar lo más nuevo abajo
         if "Marca temporal" in df_raw.columns:
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
-        # Consolidamos el inventario: se queda con la última edición de cada ID
+        # Filtro de duplicados (Nos quedamos con el último estado de cada ID)
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
         
     else:
-        # Estructura limpia si el Excel está completamente en blanco
         df_db = pd.DataFrame(columns=[
             "ID", "Tipo Insumo", "Medidas", "Eficiencia", "Clase", "Equipo", "Cant. Actual", "Verificado Por", "Observaciones"
         ])
@@ -163,35 +158,56 @@ with tab_inv:
     buscar = st.text_input("🔍 Buscar ítem en el inventario...")
     df_filtrado = df_db.copy()
     
-    # Ocultamos columnas de control de Google de la vista de la app
-    columnas_a_borrar = ["Marca temporal", "Timestamp"]
-    for col in columnas_a_borrar:
-        if col in df_filtrado.columns:
-            df_filtrado = df_filtrado.drop(columns=[col])
-    
+    # Aplicar buscador si el usuario escribe algo
     if buscar:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
-    def colorear_stock_bajo(row):
-        try:
-            val = float(row['Cant. Actual'])
-            return ['background-color: #ffebdb; color: #d35400' if val < 5 else '' for _ in row]
-        except:
-            return ['' for _ in row]
-
     if not df_filtrado.empty:
-        df_styled = df_filtrado.style.apply(colorear_stock_bajo, axis=1)
-        st.dataframe(df_styled, use_container_width=True, hide_index=True)
+        # --- NUEVA ESTRUCTURA VISUAL HORIZONTAL ---
+        for index, row in df_filtrado.iterrows():
+            try:
+                cant_actual = float(row.get("Cant. Actual", 0))
+            except:
+                cant_actual = 0
+            
+            # Alerta visual si el stock es bajo (< 5 unidades)
+            if cant_actual < 5:
+                titulo_tarjeta = f"⚠️ ID {row['ID']}: {row.get('Tipo Insumo', 'N/A')} (Stock Bajo)"
+            else:
+                titulo_tarjeta = f"📦 ID {row['ID']}: {row.get('Tipo Insumo', 'N/A')}"
+            
+            # Cada ítem es un bloque horizontal colapsable
+            with st.expander(titulo_tarjeta, expanded=True):
+                # Creamos 7 columnas horizontales fijas para los datos
+                c1, c2, c3, c4, c5, c6, c7 = st.columns([2, 2, 2, 2, 2, 3, 2])
+                
+                with c1:
+                    st.markdown(f"**Medidas:**\n\n{row.get('Medidas', 'N/A')}")
+                with c2:
+                    st.markdown(f"**Eficiencia:**\n\n{row.get('Eficiencia', 'N/A')}")
+                with c3:
+                    st.markdown(f"**Clase:**\n\n{row.get('Clase', 'N/A')}")
+                with c4:
+                    st.markdown(f"**Equipo:**\n\n{row.get('Equipo', 'N/A')}")
+                with c5:
+                    # Si el stock es bajo lo resalta en color naranja/rojo textualmente
+                    if cant_actual < 5:
+                        st.markdown(f"**🟢 Cant. Actual:**\n\n🔴 **{cant_actual}**")
+                    else:
+                        st.markdown(f"**🟢 Cant. Actual:**\n\n{cant_actual}")
+                with c6:
+                    st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
+                with c7:
+                    st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
         
         st.write("---")
         st.write("**⚠️ Acciones de Control:**")
-        st.info("Para modificar existencias, introduce el ID del ítem abajo.")
         
-        act_col1, act_col2 = st.columns([2, 10])
+        act_col1, act_col2 = st.columns([3, 9])
         id_seleccionar = act_col1.number_input("ID del Ítem para Modificar:", min_value=1, step=1, key="id_control")
         
-        if act_col2.button("✏️ Cargar Ítem en el Formulario", use_container_width=True):
+        if act_col2.button("✏️ Cargar Ítem en el Formulario Superior", use_container_width=True):
             if id_seleccionar in df_db["ID"].values:
                 st.session_state.edit_id = id_seleccionar
                 st.rerun()
