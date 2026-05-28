@@ -18,63 +18,53 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 
 # --- LECTURA DIRECTA INTELIGENTE (ALINEADA Y CORREGIDA) ---
 # --- LECTURA DIRECTA INTELIGENTE (DETECCIÓN ESTRICTA DE COLUMNAS) ---
+# --- LECTURA DIRECTA POR POSICIÓN ABSOLUTA (BLINDADO A CAMBIOS DE NOMBRE) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Limpiamos nombres de columnas quitando espacios ocultos
-        df_raw.columns = [str(c).strip() for c in df_raw.columns]
+        # Aseguramos que los datos se lean limpios eliminando filas vacías
         df_raw = df_raw.dropna(how="all")
         
-        # 1. Búsqueda flexible de la columna ID
-        columna_id_encontrada = [c for c in df_raw.columns if c.upper().strip() == "ID"]
-        if columna_id_encontrada:
-            df_raw = df_raw.rename(columns={columna_id_encontrada[0]: "ID"})
-        else:
-            df_raw["ID"] = range(1, len(df_raw) + 1)
-            
-        # 2. Búsqueda flexible de la columna de Cantidad
-        columna_cant_encontrada = [c for c in df_raw.columns if "CANT" in c.upper()]
-        if columna_cant_encontrada:
-            df_raw = df_raw.rename(columns={columna_cant_encontrada[0]: "Cant. Actual"})
-        else:
-            df_raw["Cant. Actual"] = 0
-            
-        # 3. 🚨 CORRECCIÓN CRÍTICA: Búsqueda exacta para el Tipo de Insumo
-        # Buscamos una columna que se llame exactamente "Tipo de Insumo" o que contenga "INSUMO"
-        columna_tipo_encontrada = [c for c in df_raw.columns if "TIPO" in c.upper() or "INSUMO" in c.upper()]
-        if columna_tipo_encontrada:
-            df_raw = df_raw.rename(columns={columna_tipo_encontrada[0]: "Tipo Insumo"})
-        else:
-            # Si no la encuentra por descarte, usamos la segunda columna del formulario de Google (la que va después de la Marca Temporal)
-            if len(df_raw.columns) > 1:
-                df_raw = df_raw.rename(columns={df_raw.columns[1]: "Tipo Insumo"})
+        # 🚨 FORZADO DE COLUMNAS POR POSICIÓN ESTRICTA:
+        # No importa cómo se llamen en Excel, asignamos los nombres por el orden en que entran
+        columnas_sistema = [
+            "Marca temporal", "ID", "Tipo Insumo", "Medidas", 
+            "Eficiencia", "Clase", "Equipo", "Cant. Actual", 
+            "Verificado Por", "Observaciones"
+        ]
         
-        # Convertimos de forma segura a números
+        # Ajustamos dinámicamente si faltan o sobran columnas para que nunca se caiga
+        cant_columnas_real = len(df_raw.columns)
+        if cant_columnas_real >= len(columnas_sistema):
+            df_raw.columns = columnas_sistema[:cant_columnas_real] + [str(c) for c in df_raw.columns[len(columnas_sistema):]]
+        else:
+            df_raw.columns = columnas_sistema[:cant_columnas_real]
+
+        # Convertimos los datos de manera obligatoria a tipos seguros para operar
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         df_raw["Cant. Actual"] = pd.to_numeric(df_raw["Cant. Actual"], errors="coerce").fillna(0)
+        df_raw["Tipo Insumo"] = df_raw["Tipo Insumo"].astype(str).str.strip()
         
-        # Ordenamos cronológicamente si existe la marca de tiempo de Google
+        # Ordenamos cronológicamente según la fecha de registro de Google
         if "Marca temporal" in df_raw.columns:
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
-        # Consolidamos: Nos quedamos estrictamente con el ÚLTIMO movimiento de cada ID
+        # Consolidamos: Nos quedamos únicamente con el ÚLTIMO estado reportado de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
-        # 🚨 FILTRO EVAPORADOR DE ELIMINADOS: Si el insumo es "ELIMINADO" o su cantidad es negativa, se va.
+        # 🚨 FILTRO EVAPORADOR DE ELIMINADOS:
+        # Si el Tipo Insumo es "ELIMINADO" o la cantidad es menor a 0, se expulsa de la pantalla
         if not df_db.empty:
-            # Forzamos a que todo sea texto para evitar caídas
-            df_db["Tipo Insumo"] = df_db["Tipo Insumo"].astype(str).str.strip()
-            # Filtramos
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
-        # ORDEN ALFABÉTICO FINAL DE LO QUE QUEDÓ ACTIVO
+        # ORDEN ALFABÉTICO FINAL DE LOS INSUMOS QUE QUEDARON ACTIVOS
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.astype(str).str.lower(), ascending=True)
             
-        # El ID siguiente siempre se calcula sumando 1 al máximo ID histórico que existió
+        # El ID siguiente será el máximo ID histórico + 1
         id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
     else:
         df_db = pd.DataFrame(columns=[
