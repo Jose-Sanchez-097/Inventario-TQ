@@ -21,14 +21,18 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvz
 try:
     # Asegúrate de que esta línea y las siguientes tengan 4 espacios de sangría (indentación)
     try:
-    # Ahora la URL ya lleva el timestamp, así que leemos directamente
+        # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
+try:
+    # Esta línea y todas las siguientes deben tener 4 espacios de sangría (o una tabulación)
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # ... resto de tu código de limpieza ...
         # Limpiamos espacios en blanco de los encabezados
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
+        # ... (aquí sigue el resto de tu código original, asegúrate de mantener la sangría)
+    # Ahora la URL ya lleva el timestamp, así que leemos directamente
+   
         mapa_columnas = {}
         for c in df_raw.columns:
             c_upper = c.upper()
