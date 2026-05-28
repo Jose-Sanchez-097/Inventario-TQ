@@ -38,7 +38,19 @@ try:
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
         # Consolidamos: Nos quedamos con la última fila/modificación de cada ID
+        # 1. Consolidamos: Nos quedamos con la última fila/modificación de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
+        
+        # 2. 🚨 NUEVA LÍNEA CRÍTICA: Filtramos y expulsamos los ítems eliminados del inventario activo
+        if not df_db.empty and "Tipo Insumo" in df_db.columns:
+            df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
+            df_db = df_db[df_db["Cant. Actual"] >= 0]
+        
+        # 3. 📋 ORDEN ALFABÉTICO POR TIPO DE INSUMO
+        if not df_db.empty and "Tipo Insumo" in df_db.columns:
+            df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.str.lower(), ascending=True)
+            
+        id_siguiente = int(df_raw["ID"].max()) + 1 if len(df_raw) > 0 else 1
         
         # 📋 ORDEN ALFABÉTICO POR TIPO DE INSUMO
         if "Tipo Insumo" in df_db.columns:
