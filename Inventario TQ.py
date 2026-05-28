@@ -17,6 +17,7 @@ URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9
 URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse?usp=pp_url&entry.939486531=1&entry.1861198387=2&entry.367765609=3&entry.797414005=4&entry.1971304507=5&entry.36072344=6&entry.209965346=4&entry.80107347=5&entry.257529099=8"
 
 # --- LECTURA DIRECTA INTELIGENTE (ALINEADA Y CORREGIDA) ---
+# --- LECTURA DIRECTA INTELIGENTE (DETECCIÓN ESTRICTA DE COLUMNAS) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
@@ -39,10 +40,15 @@ try:
         else:
             df_raw["Cant. Actual"] = 0
             
-        # 3. Búsqueda flexible de la columna Tipo Insumo
+        # 3. 🚨 CORRECCIÓN CRÍTICA: Búsqueda exacta para el Tipo de Insumo
+        # Buscamos una columna que se llame exactamente "Tipo de Insumo" o que contenga "INSUMO"
         columna_tipo_encontrada = [c for c in df_raw.columns if "TIPO" in c.upper() or "INSUMO" in c.upper()]
         if columna_tipo_encontrada:
             df_raw = df_raw.rename(columns={columna_tipo_encontrada[0]: "Tipo Insumo"})
+        else:
+            # Si no la encuentra por descarte, usamos la segunda columna del formulario de Google (la que va después de la Marca Temporal)
+            if len(df_raw.columns) > 1:
+                df_raw = df_raw.rename(columns={df_raw.columns[1]: "Tipo Insumo"})
         
         # Convertimos de forma segura a números
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
@@ -56,13 +62,15 @@ try:
         # Consolidamos: Nos quedamos estrictamente con el ÚLTIMO movimiento de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
-        # FILTRO CRÍTICO: Expulsamos de la pantalla los ítems dados de baja
-        if not df_db.empty and "Tipo Insumo" in df_db.columns:
+        # 🚨 FILTRO EVAPORADOR DE ELIMINADOS: Si el insumo es "ELIMINADO" o su cantidad es negativa, se va.
+        if not df_db.empty:
+            # Forzamos a que todo sea texto para evitar caídas
+            df_db["Tipo Insumo"] = df_db["Tipo Insumo"].astype(str).str.strip()
+            # Filtramos
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
-        # ORDEN ALFABÉTICO FINAL
-        # --- REEMPLÁZALO POR ESTE BLOQUE CORREGIDO ---
+        # ORDEN ALFABÉTICO FINAL DE LO QUE QUEDÓ ACTIVO
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.astype(str).str.lower(), ascending=True)
             
