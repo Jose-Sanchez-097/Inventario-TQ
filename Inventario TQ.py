@@ -138,7 +138,7 @@ with col2:
     equipo = st.text_input("Equipo", value=st.session_state.edit_datos.get("Equipo", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
 with col3:
     eficiencia = st.text_input("Eficiencia", value=st.session_state.edit_datos.get("Eficiencia", "") if st.session_state.edit_id else "", disabled=st.session_state.edit_id is not None)
-    # ESTE ES EL CAMBIO: El campo cantidad ahora SIEMPRE está activo para permitir edición
+    # ASIGNACIÓN CORRECTA:
     cantidad = st.text_input("Cantidad Actual", value=str(st.session_state.edit_datos.get("Cant. Actual", "")) if st.session_state.edit_id else "")
 with col4:
     verificado = st.text_input("Verificado Por", value=str(st.session_state.edit_datos.get("Verificado Por", "")) if st.session_state.edit_id else "")
