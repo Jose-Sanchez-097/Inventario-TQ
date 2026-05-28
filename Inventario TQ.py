@@ -204,7 +204,7 @@ with tab_inv:
         buscar = st.text_input("🔍 Buscar ítem en el inventario...")
         
     with search_col2:
-        id_seleccionar = st.number_input("🆔 ID seleccionado para modificar:", min_value=1, step=1, key="id_control")
+        id_seleccionar = st.number_input("🆔 ID de la base de datos a modificar:", min_value=1, step=1, key="id_control")
         
     with search_col3:
         st.write("##") 
@@ -221,10 +221,8 @@ with tab_inv:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
-    # --- RENDERIZADO DE TARJETAS EXPANSIBLES ---
-  # --- RENDERIZADO DE TARJETAS EXPANSIBLES ULTRA LIMPIAS ---
+    # --- RENDERIZADO DE TARJETAS EXPANSIBLES CON NUMERACIÓN VIRTUAL ---
     if not df_filtrado.empty:
-        # Contador para la numeración correlativa y limpia en pantalla
         posicion_visual = 1
         
         for index, row in df_filtrado.iterrows():
@@ -233,7 +231,7 @@ with tab_inv:
             except:
                 cant_actual = 0
             
-            # 🧼 TÍTULO TOTALMENTE LIMPIO: Solo la posición (#) y el nombre del Insumo
+            # Título impecable: Solo la posición (#) limpia y el Insumo
             if cant_actual < 5:
                 titulo_tarjeta = f"⚠️ [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico)"
             else:
@@ -257,8 +255,35 @@ with tab_inv:
                 with c6:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
-                    # 💡 TRUCO DE SEGURIDAD: Guardamos el ID de la base de datos aquí abajo de forma discreta
+                    # Guardamos el ID Real de la Base de Datos de manera discreta en la tarjeta para tu control técnico
                     st.markdown(f"**📝 Obs (ID: {row['ID']}):**\n\n{row.get('Observaciones', 'N/A')}")
             
-            # Incrementamos la posición consecutiva
             posicion_visual += 1
+
+        # --- SECCIÓN DE ELIMINACIÓN REAL ---
+        st.write("---")
+        st.subheader("🗑️ Zona de Eliminación de Insumos")
+        del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
+        
+        with del_col1:
+            id_a_borrar = st.number_input("ID de la base de datos a Borrar:", min_value=1, step=1, key="id_borrar")
+        with del_col2:
+            clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
+        with del_col3:
+            st.write("##")
+            if st.button("🔥 Confirmar Eliminación", use_container_width=True):
+                if clave_input == CONTRASENA_CORRECTA:
+                    if id_a_borrar in df_db["ID"].values:
+                        if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
+                            registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
+                            st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
+                            st.rerun()
+                    else:
+                        st.error("El ID seleccionado no existe en la base de datos.")
+                else:
+                    st.error("Contraseña incorrecta. Acción denegada.")
+    else:
+        st.info("El inventario está vacío o no hay coincidencias con la búsqueda.")
+
+with tab_hist:
+    st.dataframe(st.session_state.historial, use_container_width=True, hide_index=True)
