@@ -63,7 +63,7 @@ if st.session_state.edit_id is None:
                 nuevo_item = {
                     "ID": st.session_state.id_counter, "Tipo Insumo": tipo, "Medidas": medidas,
                     "Eficiencia": eficiencia, "Clase": clase, "Equipo": equipo,
-                    "Cant. Actual": cant_val, "Verificado Por": verificado, "Observaciones": observations
+                    "Cant. Actual": cant_val, "Verificado Por": verificado, "Observaciones": observaciones
                 }
                 st.session_state.inventario = pd.concat([st.session_state.inventario, pd.DataFrame([nuevo_item])], ignore_index=True)
                 registrar_movimiento("REGISTRO", st.session_state.id_counter, f"Creado: {tipo} | Equipo: {equipo} | Stock: {cantidad}")
