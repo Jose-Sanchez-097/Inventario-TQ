@@ -215,7 +215,6 @@ with tab_inv:
             mapa_posiciones_id[i] = int(row["ID"])
 
     with search_col2:
-        # El usuario escribe el número de la tarjeta (#)
         pos_seleccionar = st.number_input("🆔 N° de posición (#) a modificar:", min_value=1, step=1, key="pos_control")
         
     with search_col3:
@@ -260,17 +259,17 @@ with tab_inv:
                 with c6:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
-                    st.markdown(f"**📝 Obs (ID: {row['ID']}):**\n\n{row.get('Observaciones', 'N/A')}")
+                    # 🧼 CAMBIO VISUAL AQUÍ: Título limpio "Obs:" e ID oculto sutilmente abajo
+                    st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}\n\n")
             
             posicion_visual += 1
 
-        # --- SECCIÓN DE ELIMINACIÓN CORREGIDA POR POSICIÓN (#) ---
+        # --- SECCIÓN DE ELIMINACIÓN POR POSICIÓN (#) ---
         st.write("---")
         st.subheader("🗑️ Zona de Eliminación de Insumos")
         del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
         
         with del_col1:
-            # Ahora la eliminación también te pide el número correlativo de la tarjeta (#)
             pos_a_borrar = st.number_input("N° de posición (#) del Ítem a Borrar:", min_value=1, step=1, key="pos_borrar")
         with del_col2:
             clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
@@ -278,7 +277,6 @@ with tab_inv:
             st.write("##")
             if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 if clave_input == CONTRASENA_CORRECTA:
-                    # Traducimos el número de posición introducido al ID real de Sheets
                     if pos_a_borrar in mapa_posiciones_id:
                         id_real_borrar = mapa_posiciones_id[pos_a_borrar]
                         if enviar_datos_formulario(id_real_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
