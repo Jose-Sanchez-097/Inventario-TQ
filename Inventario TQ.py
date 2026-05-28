@@ -11,7 +11,7 @@ st.title("📦 Control de Inventario e Historial TQ")
 CONTRASENA_CORRECTA = "TQ2026"
 
 # ⚠️ REEMPLAZA ESTO CON EL ID LARGO DE TU HOJA DE CÁLCULO ⚠️
-ID_HOJA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit"
+ID_HOJA = "1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI"
 NOMB_HOJA = "Sheet1"
 
 # URL de exportación directa en formato CSV para lectura rápida y URL de envío de datos
