@@ -208,21 +208,19 @@ with tab_inv:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
-    # --- MAPEEO DE POSICIÓN VISUAL A ID REAL ---
-    # Creamos un diccionario para saber qué [#] corresponde a qué ID Real
+    # --- ENLACE DINÁMICO DE POSICIONES (#) A IDS REALES ---
     mapa_posiciones_id = {}
     if not df_filtrado.empty:
         for i, (idx, row) in enumerate(df_filtrado.iterrows(), start=1):
             mapa_posiciones_id[i] = int(row["ID"])
 
     with search_col2:
-        # Ahora el usuario digita el número de posición (#) que ve en la tarjeta
+        # El usuario escribe el número de la tarjeta (#)
         pos_seleccionar = st.number_input("🆔 N° de posición (#) a modificar:", min_value=1, step=1, key="pos_control")
         
     with search_col3:
         st.write("##") 
         if st.button("✏️ Modificar Atributo", use_container_width=True):
-            # Verificamos si la posición ingresada existe en la pantalla
             if pos_seleccionar in mapa_posiciones_id:
                 st.session_state.edit_id = mapa_posiciones_id[pos_seleccionar]
                 st.rerun()
@@ -239,7 +237,6 @@ with tab_inv:
             except:
                 cant_actual = 0
             
-            # Título impecable: Solo la posición (#) limpia y el Insumo
             if cant_actual < 5:
                 titulo_tarjeta = f"⚠️ [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico)"
             else:
@@ -263,30 +260,33 @@ with tab_inv:
                 with c6:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
-                    # Guardamos el ID Real de la Base de Datos de manera discreta en la tarjeta para tu control técnico
                     st.markdown(f"**📝 Obs (ID: {row['ID']}):**\n\n{row.get('Observaciones', 'N/A')}")
             
             posicion_visual += 1
-        # --- SECCIÓN DE ELIMINACIÓN REAL ---
+
+        # --- SECCIÓN DE ELIMINACIÓN CORREGIDA POR POSICIÓN (#) ---
         st.write("---")
         st.subheader("🗑️ Zona de Eliminación de Insumos")
         del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
         
         with del_col1:
-            id_a_borrar = st.number_input("ID de la base de datos a Borrar:", min_value=1, step=1, key="id_borrar")
+            # Ahora la eliminación también te pide el número correlativo de la tarjeta (#)
+            pos_a_borrar = st.number_input("N° de posición (#) del Ítem a Borrar:", min_value=1, step=1, key="pos_borrar")
         with del_col2:
             clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
         with del_col3:
             st.write("##")
             if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 if clave_input == CONTRASENA_CORRECTA:
-                    if id_a_borrar in df_db["ID"].values:
-                        if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
-                            registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
-                            st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
+                    # Traducimos el número de posición introducido al ID real de Sheets
+                    if pos_a_borrar in mapa_posiciones_id:
+                        id_real_borrar = mapa_posiciones_id[pos_a_borrar]
+                        if enviar_datos_formulario(id_real_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
+                            registrar_movimiento("ELIMINACIÓN", id_real_borrar, "Insumo eliminado usando contraseña TQ2026")
+                            st.success(f"El ítem en la posición #{pos_a_borrar} fue eliminado con éxito.")
                             st.rerun()
                     else:
-                        st.error("El ID seleccionado no existe en la base de datos.")
+                        st.error("El número de posición seleccionado no aparece en la lista actual.")
                 else:
                     st.error("Contraseña incorrecta. Acción denegada.")
     else:
