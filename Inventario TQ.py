@@ -11,7 +11,7 @@ st.title("📦 Control de Inventario e Historial TQ")
 CONTRASENA_CORRECTA = "TQ2026"
 
 # 1. ⚠️ PEGA AQUÍ EL ENLACE COMPLETO DE TU GOOGLE SHEETS PARA LECTURA ⚠️
-URL_COMPLETA_GOOGLE = "https://docs.google.com/spreadsheets/d/TU_ID_AQUI/edit"
+URL_COMPLETA_GOOGLE = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/edit"
 
 # 2. ⚠️ CONFIGURA AQUÍ LOS DATOS DE TU GOOGLE FORM PARA ESCRITURA ⚠️
 # Cambia 'viewform' por 'formResponse' en la URL base de tu formulario
