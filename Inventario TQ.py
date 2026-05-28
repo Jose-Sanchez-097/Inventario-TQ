@@ -222,17 +222,22 @@ with tab_inv:
         df_filtrado = df_filtrado[mask]
 
     # --- RENDERIZADO DE TARJETAS EXPANSIBLES ---
+   # --- RENDERIZADO DE TARJETAS EXPANSIBLES CON POSICIÓN VIRTUAL CORRELATIVA ---
     if not df_filtrado.empty:
+        # Creamos un contador para la numeración correlativa en pantalla
+        posicion_visual = 1
+        
         for index, row in df_filtrado.iterrows():
             try:
                 cant_actual = float(row.get("Cant. Actual", 0))
             except:
                 cant_actual = 0
             
+            # Usamos 'posicion_visual' para el título de la tarjeta, pero conservamos el row['ID'] real dentro
             if cant_actual < 5:
-                titulo_tarjeta = f"⚠️ [ID {row['ID']}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico)"
+                titulo_tarjeta = f"⚠️ [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico) — [ID Real: {row['ID']}]"
             else:
-                titulo_tarjeta = f"📦 [ID {row['ID']}] {row.get('Tipo Insumo', 'N/A')}"
+                titulo_tarjeta = f"📦 [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} — [ID Real: {row['ID']}]"
             
             with st.expander(titulo_tarjeta, expanded=True):
                 c1, c2, c3, c4, c5, c6, c7 = st.columns([2, 2, 2, 2, 2, 3, 2])
@@ -253,32 +258,6 @@ with tab_inv:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
                     st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
-
-        # --- SECCIÓN DE ELIMINACIÓN REAL ---
-        st.write("---")
-        st.subheader("🗑️ Zona de Eliminación de Insumos")
-        del_col1, del_col2, del_col3 = st.columns([2, 3, 3])
-        
-        with del_col1:
-            id_a_borrar = st.number_input("ID del Ítem a Borrar:", min_value=1, step=1, key="id_borrar")
-        with del_col2:
-            clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
-        with del_col3:
-            st.write("##")
-            if st.button("🔥 Confirmar Eliminación", use_container_width=True):
-                if clave_input == CONTRASENA_CORRECTA:
-                    if id_a_borrar in df_db["ID"].values:
-                        if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
-                            registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
-                            st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
-                            st.rerun()
-                    else:
-                        st.error("El ID seleccionado no existe.")
-                else:
-                    st.error("Contraseña incorrecta. Acción denegada.")
-    else:
-        st.info("El inventario está vacío o no hay coincidencias con la búsqueda.")
-
-with tab_hist:
-    st.dataframe(st.session_state.historial, use_container_width=True, hide_index=True)
-    
+            
+            # Incrementamos la posición para el siguiente ítem activo en la lista
+            posicion_visual += 1
