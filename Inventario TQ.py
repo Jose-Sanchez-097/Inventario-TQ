@@ -222,9 +222,9 @@ with tab_inv:
         df_filtrado = df_filtrado[mask]
 
     # --- RENDERIZADO DE TARJETAS EXPANSIBLES ---
-   # --- RENDERIZADO DE TARJETAS EXPANSIBLES CON POSICIÓN VIRTUAL CORRELATIVA ---
+  # --- RENDERIZADO DE TARJETAS EXPANSIBLES ULTRA LIMPIAS ---
     if not df_filtrado.empty:
-        # Creamos un contador para la numeración correlativa en pantalla
+        # Contador para la numeración correlativa y limpia en pantalla
         posicion_visual = 1
         
         for index, row in df_filtrado.iterrows():
@@ -233,11 +233,11 @@ with tab_inv:
             except:
                 cant_actual = 0
             
-            # Usamos 'posicion_visual' para el título de la tarjeta, pero conservamos el row['ID'] real dentro
+            # 🧼 TÍTULO TOTALMENTE LIMPIO: Solo la posición (#) y el nombre del Insumo
             if cant_actual < 5:
-                titulo_tarjeta = f"⚠️ [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico) — [ID Real: {row['ID']}]"
+                titulo_tarjeta = f"⚠️ [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} (Stock Crítico)"
             else:
-                titulo_tarjeta = f"📦 [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')} — [ID Real: {row['ID']}]"
+                titulo_tarjeta = f"📦 [#{posicion_visual}] {row.get('Tipo Insumo', 'N/A')}"
             
             with st.expander(titulo_tarjeta, expanded=True):
                 c1, c2, c3, c4, c5, c6, c7 = st.columns([2, 2, 2, 2, 2, 3, 2])
@@ -257,7 +257,8 @@ with tab_inv:
                 with c6:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
-                    st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}")
+                    # 💡 TRUCO DE SEGURIDAD: Guardamos el ID de la base de datos aquí abajo de forma discreta
+                    st.markdown(f"**📝 Obs (ID: {row['ID']}):**\n\n{row.get('Observaciones', 'N/A')}")
             
-            # Incrementamos la posición para el siguiente ítem activo en la lista
+            # Incrementamos la posición consecutiva
             posicion_visual += 1
