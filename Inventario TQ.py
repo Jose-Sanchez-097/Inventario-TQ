@@ -14,7 +14,7 @@ CONTRASENA_CORRECTA = "TQ2026"
 URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440"
 
 # 2. Enlace de respuesta del formulario (limpio para peticiones POST)
-URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
+URL_FORM_RESPONSE = "https://docs.google.com/forms/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
@@ -28,7 +28,6 @@ try:
         mapa_columnas = {}
         for c in df_raw.columns:
             c_upper = c.upper()
-            # Búsqueda tolerante e inteligente de las columnas del Sheets
             if c_upper == "ID" or ("ID" in c_upper and len(c) < 6):
                 mapa_columnas[c] = "ID"
             elif "TIPO" in c_upper or "INSUMO" in c_upper:
@@ -50,10 +49,8 @@ try:
             elif "MARCA" in c_upper or "TIEMPO" in c_upper or "TIMESTAMP" in c_upper:
                 mapa_columnas[c] = "Marca temporal"
         
-        # Renombramos las columnas encontradas
         df_raw = df_raw.rename(columns={k: v for k, v in mapa_columnas.items() if v not in df_raw.columns or k == v})
         
-        # Validamos columnas críticas obligatorias
         columnas_obligatorias = ["ID", "Tipo Insumo", "Cant. Actual", "Marca temporal"]
         for col in columnas_obligatorias:
             if col not in df_raw.columns:
@@ -64,25 +61,20 @@ try:
                 else:
                     df_raw[col] = ""
 
-        # Conversiones de seguridad de tipos de datos
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         df_raw["Cant. Actual"] = pd.to_numeric(df_raw["Cant. Actual"], errors="coerce").fillna(0)
         df_raw["Tipo Insumo"] = df_raw["Tipo Insumo"].astype(str).str.strip()
         
-        # Ordenamos cronológicamente de forma segura
         if "Marca temporal" in df_raw.columns and df_raw["Marca temporal"].notna().any():
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
-        # Consolidación de datos: nos quedamos con el último registro de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
-        # Filtro de visualización (no mostrar eliminados ni negativos)
         if not df_db.empty:
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
         
-        # Orden alfabético para mostrar en las tarjetas
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
             df_db = df_db.sort_values(by="Tipo Insumo", key=lambda col: col.astype(str).str.lower(), ascending=True)
             
@@ -95,7 +87,7 @@ except Exception as e:
     st.error(f"Error crítico al conectar con la Base de Datos. Detalles: {e}")
     st.stop()
 
-# --- FUNCIÓN DE ESCRITURA CON TUS ENTRYS REALES DETECTADOS ---
+# --- FUNCIÓN DE ESCRITURA ---
 def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_val, cant_val, verif_val, obs_val):
     form_data = {
         "entry.939486531": str(id_val),       
@@ -115,7 +107,6 @@ def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_v
         st.error(f"Error de red al enviar datos: {e}")
         return False
 
-# Historial en memoria de sesión
 if "historial" not in st.session_state:
     st.session_state.historial = pd.DataFrame(columns=["Fecha/Hora", "Acción", "Elemento", "Detalle"])
 
@@ -128,26 +119,45 @@ def registrar_movimiento(accion, item_id, detalle):
     }
     st.session_state.historial = pd.concat([pd.DataFrame([nueva_fila]), st.session_state.historial], ignore_index=True).head(50)
 
-# --- FORMULARIO DE ENTRADA EN INTERFAZ ---
-st.subheader("📝 Gestión de Ítems")
-
+# --- CONFIGURACIÓN DE ESTADOS DE SESIÓN PARA EDICIÓN SEGURA ---
 if "edit_id" not in st.session_state:
     st.session_state.edit_id = None
+if "edit_datos" not in st.session_state:
+    st.session_state.edit_datos = {}
+
+# --- FORMULARIO DE ENTRADA EN INTERFAZ ---
+st.subheader("📝 Gestión de Ítems")
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    tipo = st.text_input("Tipo de Insumo", disabled=st.session_state.edit_id is not None)
-    clase = st.text_input("Clase", disabled=st.session_state.edit_id is not None)
+    if st.session_state.edit_id is not None:
+        tipo = st.text_input("Tipo de Insumo", value=st.session_state.edit_datos.get("Tipo Insumo", ""), disabled=True)
+        clase = st.text_input("Clase", value=st.session_state.edit_datos.get("Clase", ""), disabled=True)
+    else:
+        tipo = st.text_input("Tipo de Insumo")
+        clase = st.text_input("Clase")
 with col2:
-    medidas = st.text_input("Medidas", disabled=st.session_state.edit_id is not None)
-    equipo = st.text_input("Equipo", disabled=st.session_state.edit_id is not None)
+    if st.session_state.edit_id is not None:
+        medidas = st.text_input("Medidas", value=st.session_state.edit_datos.get("Medidas", ""), disabled=True)
+        equipo = st.text_input("Equipo", value=st.session_state.edit_datos.get("Equipo", ""), disabled=True)
+    else:
+        medidas = st.text_input("Medidas")
+        equipo = st.text_input("Equipo")
 with col3:
-    eficiencia = st.text_input("Eficiencia", disabled=st.session_state.edit_id is not None)
-    cantidad = st.text_input("Cantidad Actual")
+    if st.session_state.edit_id is not None:
+        eficiencia = st.text_input("Eficiencia", value=st.session_state.edit_datos.get("Eficiencia", ""), disabled=True)
+        cantidad = st.text_input("Cantidad Actual", value=str(st.session_state.edit_datos.get("Cant. Actual", "")))
+    else:
+        eficiencia = st.text_input("Eficiencia")
+        cantidad = st.text_input("Cantidad Actual")
 with col4:
-    verificado = st.text_input("Verificado Por")
-    observaciones = st.text_input("Observaciones")
+    if st.session_state.edit_id is not None:
+        verificado = st.text_input("Verificado Por", value=str(st.session_state.edit_datos.get("Verificado Por", "")))
+        observaciones = st.text_input("Observaciones", value=str(st.session_state.edit_datos.get("Observaciones", "")))
+    else:
+        verificado = st.text_input("Verificado Por")
+        observaciones = st.text_input("Observaciones")
 
 # --- BOTONES DE ACCIÓN ---
 b_col1, b_col2, b_col3 = st.columns([2, 2, 8])
@@ -170,17 +180,17 @@ else:
         try:
             cant_val = float(cantidad)
             if verificado:
-                idx = df_db[df_db["ID"] == st.session_state.edit_id].index[0]
-                
-                t_fijo = df_db.at[idx, "Tipo Insumo"] if "Tipo Insumo" in df_db.columns else ""
-                m_fijo = df_db.at[idx, "Medidas"] if "Medidas" in df_db.columns else ""
-                e_fijo = df_db.at[idx, "Eficiencia"] if "Eficiencia" in df_db.columns else ""
-                c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
-                eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
+                # Recuperamos los valores de texto estáticos guardados de forma segura en la sesión
+                t_fijo = st.session_state.edit_datos.get("Tipo Insumo", "")
+                m_fijo = st.session_state.edit_datos.get("Medidas", "")
+                e_fijo = st.session_state.edit_datos.get("Eficiencia", "")
+                c_fijo = st.session_state.edit_datos.get("Clase", "")
+                eq_fijo = st.session_state.edit_datos.get("Equipo", "")
                 
                 if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
-                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
+                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Obs: {observaciones}")
                     st.session_state.edit_id = None
+                    st.session_state.edit_datos = {}
                     st.success("Cambios sincronizados exitosamente.")
                     st.rerun()
             else:
@@ -190,6 +200,7 @@ else:
             
     if b_col2.button("❌ Cancelar Edición", use_container_width=True):
         st.session_state.edit_id = None
+        st.session_state.edit_datos = {}
         st.rerun()
 
 st.markdown("---")
@@ -208,11 +219,11 @@ with tab_inv:
         mask = df_filtrado.astype(str).apply(lambda x: x.str.contains(buscar, case=False)).any(axis=1)
         df_filtrado = df_filtrado[mask]
 
-    # --- ENLACE DINÁMICO DE POSICIONES (#) A IDS REALES ---
-    mapa_posiciones_id = {}
+    # --- MAPEO CRÍTICO DE POSICIONES A DATOS COMPLETOS DE SESIÓN ---
+    mapa_posiciones_datos = {}
     if not df_filtrado.empty:
         for i, (idx, row) in enumerate(df_filtrado.iterrows(), start=1):
-            mapa_posiciones_id[i] = int(row["ID"])
+            mapa_posiciones_datos[i] = row.to_dict()
 
     with search_col2:
         pos_seleccionar = st.number_input("🆔 N° de posición (#) a modificar:", min_value=1, step=1, key="pos_control")
@@ -220,13 +231,16 @@ with tab_inv:
     with search_col3:
         st.write("##") 
         if st.button("✏️ Modificar Atributo", use_container_width=True):
-            if pos_seleccionar in mapa_posiciones_id:
-                st.session_state.edit_id = mapa_posiciones_id[pos_seleccionar]
+            if pos_seleccionar in mapa_posiciones_datos:
+                # Almacenamos el ID y la fila completa en memoria estática de forma blindada
+                datos_item = mapa_posiciones_datos[pos_seleccionar]
+                st.session_state.edit_id = int(datos_item["ID"])
+                st.session_state.edit_datos = datos_item
                 st.rerun()
             else:
                 st.error("El número de posición seleccionado no aparece en la lista actual.")
 
-    # --- RENDERIZADO DE TARJETAS EXPANSIBLES CON NUMERACIÓN VIRTUAL ---
+    # --- RENDERIZADO DE TARJETAS EXPANSIBLES ---
     if not df_filtrado.empty:
         posicion_visual = 1
         
@@ -259,7 +273,6 @@ with tab_inv:
                 with c6:
                     st.markdown(f"**👤 Verificado Por:**\n\n{row.get('Verificado Por', 'N/A')}")
                 with c7:
-                    # 🧼 CAMBIO VISUAL AQUÍ: Título limpio "Obs:" e ID oculto sutilmente abajo
                     st.markdown(f"**📝 Obs:**\n\n{row.get('Observaciones', 'N/A')}\n\n")
             
             posicion_visual += 1
@@ -277,8 +290,8 @@ with tab_inv:
             st.write("##")
             if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 if clave_input == CONTRASENA_CORRECTA:
-                    if pos_a_borrar in mapa_posiciones_id:
-                        id_real_borrar = mapa_posiciones_id[pos_a_borrar]
+                    if pos_a_borrar in mapa_posiciones_datos:
+                        id_real_borrar = int(mapa_posiciones_datos[pos_a_borrar]["ID"])
                         if enviar_datos_formulario(id_real_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
                             registrar_movimiento("ELIMINACIÓN", id_real_borrar, "Insumo eliminado usando contraseña TQ2026")
                             st.success(f"El ítem en la posición #{pos_a_borrar} fue eliminado con éxito.")
