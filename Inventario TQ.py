@@ -19,35 +19,62 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 # --- LECTURA DIRECTA INTELIGENTE (ALINEADA Y CORREGIDA) ---
 # --- LECTURA DIRECTA INTELIGENTE (DETECCIÓN ESTRICTA DE COLUMNAS) ---
 # --- LECTURA DIRECTA POR POSICIÓN ABSOLUTA (BLINDADO A CAMBIOS DE NOMBRE) ---
+# --- LECTURA DIRECTA MAPEADA (INMUNE A CAMBIOS DE ORDEN DE COLUMNAS) ---
 try:
     df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
     
     if not df_raw.empty:
-        # Aseguramos que los datos se lean limpios eliminando filas vacías
+        # Limpiamos espacios en blanco de los títulos originales
+        df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # 🚨 FORZADO DE COLUMNAS POR POSICIÓN ESTRICTA:
-        # No importa cómo se llamen en Excel, asignamos los nombres por el orden en que entran
-        columnas_sistema = [
-            "Marca temporal", "ID", "Tipo Insumo", "Medidas", 
-            "Eficiencia", "Clase", "Equipo", "Cant. Actual", 
-            "Verificado Por", "Observaciones"
-        ]
+        # Diccionario para renombrar las columnas dinámicamente según su contenido
+        mapa_columnas = {}
         
-        # Ajustamos dinámicamente si faltan o sobran columnas para que nunca se caiga
-        cant_columnas_real = len(df_raw.columns)
-        if cant_columnas_real >= len(columnas_sistema):
-            df_raw.columns = columnas_sistema[:cant_columnas_real] + [str(c) for c in df_raw.columns[len(columnas_sistema):]]
-        else:
-            df_raw.columns = columnas_sistema[:cant_columnas_real]
+        for c in df_raw.columns:
+            c_upper = c.upper()
+            if c_upper == "ID" or ( "ID" in c_upper and len(c) < 5 ):
+                mapa_columnas[c] = "ID"
+            elif "TIPO" in c_upper or "INSUMO" in c_upper:
+                mapa_columnas[c] = "Tipo Insumo"
+            elif "MEDIDA" in c_upper:
+                mapa_columnas[c] = "Medidas"
+            elif "EFIC" in c_upper:
+                mapa_columnas[c] = "Eficiencia"
+            elif "CLASE" in c_upper:
+                mapa_columnas[c] = "Clase"
+            elif "EQUIPO" in c_upper:
+                mapa_columnas[c] = "Equipo"
+            elif "CANT" in c_upper:
+                mapa_columnas[c] = "Cant. Actual"
+            elif "VERIF" in c_upper or "QUIEN" in c_upper or "PERSONA" in c_upper:
+                mapa_columnas[c] = "Verificado Por"
+            elif "OBS" in c_upper or "COMENT" in c_upper:
+                mapa_columnas[c] = "Observaciones"
+            elif "MARCA TEMPORAL" in c_upper or "TIMESTAMP" in c_upper:
+                mapa_columnas[c] = "Marca temporal"
+        
+        # Aplicamos el renombrado inteligente
+        df_raw = df_raw.rename(columns={k: v for k, v in mapa_columnas.items() if v not in df_raw.columns or k == v})
+        
+        # Aseguramos la existencia de las columnas críticas para que no falle la interfaz
+        columnas_obligatorias = ["ID", "Tipo Insumo", "Cant. Actual", "Marca temporal"]
+        for col in columnas_obligatorias:
+            if col not in df_raw.columns:
+                if col == "ID":
+                    df_raw["ID"] = range(1, len(df_raw) + 1)
+                elif col == "Cant. Actual":
+                    df_raw["Cant. Actual"] = 0
+                else:
+                    df_raw[col] = ""
 
         # Convertimos los datos de manera obligatoria a tipos seguros para operar
         df_raw["ID"] = pd.to_numeric(df_raw["ID"], errors="coerce").fillna(0).astype(int)
         df_raw["Cant. Actual"] = pd.to_numeric(df_raw["Cant. Actual"], errors="coerce").fillna(0)
         df_raw["Tipo Insumo"] = df_raw["Tipo Insumo"].astype(str).str.strip()
         
-        # Ordenamos cronológicamente según la fecha de registro de Google
-        if "Marca temporal" in df_raw.columns:
+        # Ordenamos cronológicamente según la fecha de registro de Google Forms
+        if "Marca temporal" in df_raw.columns and df_raw["Marca temporal"].notna().any():
             df_raw["Marca temporal"] = pd.to_datetime(df_raw["Marca temporal"], errors="coerce")
             df_raw = df_raw.sort_values(by="Marca temporal", ascending=True)
         
@@ -55,7 +82,7 @@ try:
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
         
         # 🚨 FILTRO EVAPORADOR DE ELIMINADOS:
-        # Si el Tipo Insumo es "ELIMINADO" o la cantidad es menor a 0, se expulsa de la pantalla
+        # Solo se oculta si explícitamente se marcó como "ELIMINADO" o si su cantidad es negativa (-1)
         if not df_db.empty:
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
