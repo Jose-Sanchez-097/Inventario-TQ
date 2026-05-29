@@ -11,13 +11,119 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CSS PARA RESPONSIVIDAD MÓVIL ---
-st.markdown("""
-    <style>
-    .stApp { background-color: #f5f5f5; }
-    .element-container div[data-testid="stDataFrame"] { overflow-x: auto; }
-    </style>
-""", unsafe_allow_html=True)
+# --- DETECCIÓN AUTOMÁTICA DEL TEMA Y CSS DINÁMICO ---
+# JavaScript para detectar el tema del sistema
+detect_theme_js = """
+<script>
+    function getTheme() {
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    // Enviar tema al servidor de Streamlit
+    const theme = getTheme();
+    window.parent.postMessage({type: 'streamlit:setThemeValue', value: theme}, '*');
+</script>
+"""
+
+# CSS Dinámico según el tema
+css_themes = """
+<style>
+    /* --- MODO OSCURO --- */
+    @media (prefers-color-scheme: dark) {
+        .stApp {
+            background-color: #0e1117;
+            color: #fafafa;
+        }
+        .stSidebar {
+            background-color: #262730;
+        }
+        .stTextInput > div > div > input, 
+        .stTextArea > div > div > textarea,
+        .stSelectbox > div > div > div {
+            background-color: #262730;
+            color: #fafafa;
+            border: 1px solid #4a4a4a;
+        }
+        .stButton > button {
+            background-color: #262730;
+            color: #fafafa;
+            border: 1px solid #4a4a4a;
+        }
+        .stButton > button:hover {
+            background-color: #4a4a4a;
+        }
+        .stDataFrame {
+            background-color: #262730;
+        }
+        div[data-testid="stMetricValue"] {
+            color: #fafafa;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #fafafa;
+        }
+        .stAlert {
+            background-color: #262730;
+        }
+    }
+    
+    /* --- MODO CLARO --- */
+    @media (prefers-color-scheme: light) {
+        .stApp {
+            background-color: #ffffff;
+            color: #262730;
+        }
+        .stSidebar {
+            background-color: #f0f2f6;
+        }
+        .stTextInput > div > div > input, 
+        .stTextArea > div > div > textarea,
+        .stSelectbox > div > div > div {
+            background-color: #ffffff;
+            color: #262730;
+            border: 1px solid #e0e0e0;
+        }
+        .stButton > button {
+            background-color: #ff4b4b;
+            color: #ffffff;
+            border: none;
+        }
+        .stButton > button:hover {
+            background-color: #ff2b2b;
+        }
+        div[data-testid="stMetricValue"] {
+            color: #262730;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #262730;
+        }
+    }
+    
+    /* --- ESTILOS COMUNES (Se adaptan automáticamente) --- */
+    .divider {
+        margin: 20px 0;
+    }
+    .custom-alert {
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .success-alert {
+        background-color: rgba(0, 128, 0, 0.1);
+        border-left: 4px solid green;
+    }
+    .error-alert {
+        background-color: rgba(255, 0, 0, 0.1);
+        border-left: 4px solid red;
+    }
+    .warning-alert {
+        background-color: rgba(255, 165, 0, 0.1);
+        border-left: 4px solid orange;
+    }
+</style>
+"""
+
+# Aplicar CSS
+st.markdown(css_themes, unsafe_allow_html=True)
+st.markdown(detect_theme_js, unsafe_allow_html=True)
 
 # --- BASE DE DATOS (SQLite) ---
 DB_FILE = 'inventario.db'
@@ -42,7 +148,7 @@ def init_db():
         )
     ''')
     
-    # Tabla de Sistema (Nueva Sección)
+    # Tabla de Sistema
     c.execute('''
         CREATE TABLE IF NOT EXISTS sistema (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,11 +218,12 @@ if menu == "🏠 Inicio":
     # Métricas principales
     col1, col2 = st.columns(2)
     col1.metric("Total Insumos Registrados", len(df))
-    # Se eliminó "Unidades Totales" según tu solicitud
+    col2.metric("Total Sistemas Registrados", len(get_sistema()))
     
     # Alerta de Stock Bajo
     st.markdown("---")
     st.subheader("⚠️ Alerta: Stock Bajo (< 5 unidades)")
+    
     if not df.empty:
         low_stock = df[df['cantidad'] < 5]
         if not low_stock.empty:
@@ -126,6 +233,13 @@ if menu == "🏠 Inicio":
             st.success("✅ El inventario se encuentra en niveles óptimos.")
     else:
         st.info("No hay datos en el inventario.")
+    
+    # Verificar también sistemas con stock bajo
+    df_sis = get_sistema()
+    if not df_sis.empty:
+        low_stock_sis = df_sis[df_sis['cantidad'] < 5]
+        if not low_stock_sis.empty:
+            st.warning(f"¡Tienes {len(low_stock_sis)} sistemas con stock crítico!")
 
     st.subheader("📋 Vista General del Inventario")
     st.dataframe(df.set_index('id'), use_container_width=True)
@@ -313,63 +427,4 @@ elif menu == "⚙️ Sistema":
                     if submit:
                         if passwd == "TQ2026":
                             execute_query('''UPDATE sistema SET 
-                                            nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? 
-                                            WHERE id=?''', 
-                                          (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, datetime.now().strftime("%Y-%m-%d"), sis_id))
-                            add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
-                            st.success("✅ Sistema actualizado.")
-                        else:
-                            st.error("❌ Contraseña incorrecta.")
-    
-    # ELIMINAR EN SISTEMA
-    with tab3:
-        st.subheader("Eliminar Sistema")
-        df_sis = get_sistema()
-        
-        if df_sis.empty:
-            st.info("No hay sistemas.")
-        else:
-            opciones_sis = df_sis.apply(lambda x: f"{x['id']} - {x['nombre']}", axis=1).tolist()
-            seleccion_sis = st.selectbox("Seleccione Sistema a Eliminar", opciones_sis)
-            
-            passwd = st.text_input("Contraseña (TQ2026)", type="password")
-            
-            if st.button("🗑️ Eliminar Sistema"):
-                if passwd == "TQ2026":
-                    sis_id = int(seleccion_sis.split(" - ")[0])
-                    sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
-                    execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
-                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
-                    st.success("✅ Sistema eliminado.")
-                else:
-                    st.error("❌ Contraseña incorrecta.")
-
-# --- 7. BUSCAR SISTEMA ---
-elif menu == "🔍 Buscar Sistema":
-    st.header("Buscar Sistema")
-    df_sis = get_sistema()
-    
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        criterio = st.text_input("Ingrese texto a buscar (Nombre, Tipo de Filtro, Modelo)")
-        if criterio:
-            resultado = df_sis[
-                df_sis['nombre'].str.contains(criterio, case=False, na=False) |
-                df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) |
-                df_sis['modelo'].str.contains(criterio, case=False, na=False)
-            ]
-            st.dataframe(resultado.set_index('id'), use_container_width=True)
-        else:
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-# --- 8. HISTORIAL ---
-elif menu == "📜 Historial":
-    st.header("Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
-        
+                                            nombre=?, tipo_filtro=?, modelo=?, eficiencia
