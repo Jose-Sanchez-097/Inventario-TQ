@@ -420,7 +420,7 @@ def pagina_historial():
     else:
         st.dataframe(df)
 
-# ==================== MAIN ====================
+==================== MAIN ====================
 def main():
     if not st.session_state.sesion_iniciada:
         pagina_login()
@@ -429,4 +429,33 @@ def main():
         menu = st.sidebar.selectbox("Opciones", 
             ["🏠 Inicio", 
              "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Insumo",
-             "⚙️ Agregar
+             "⚙️ Agregar Sistema", "✏️ Modificar Sistema", "🗑️ Eliminar Sistema", "🔍 Buscar Sistema",
+             "📜 Historial"])
+        
+        st.sidebar.markdown("---")
+        if st.sidebar.button("🚪 Cerrar Sesión"):
+            cerrar_sesion()
+        
+        if menu == "🏠 Inicio":
+            mostrar_dashboard()
+        elif menu == "➕ Agregar Insumo":
+            pagina_agregar_insumo()
+        elif menu == "✏️ Modificar Insumo":
+            pagina_modificar_insumo()
+        elif menu == "🗑️ Eliminar Insumo":
+            pagina_eliminar_insumo()
+        elif menu == "🔍 Buscar Insumo":
+            pagina_buscar_insumo()
+        elif menu == "⚙️ Agregar Sistema":
+            pagina_agregar_sistema()
+        elif menu == "✏️ Modificar Sistema":
+            pagina_modificar_sistema()
+        elif menu == "🗑️ Eliminar Sistema":
+            pagina_eliminar_sistema()
+        elif menu == "🔍 Buscar Sistema":
+            pagina_buscar_sistema()
+        elif menu == "📜 Historial":
+            pagina_historial()
+
+if __name__ == "__main__":
+    main()
