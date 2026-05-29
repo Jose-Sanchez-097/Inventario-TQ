@@ -232,15 +232,19 @@ with tab_inv:
             clave_input = st.text_input("🔑 Contraseña de Autorización:", type="password", key="clave_borrar")
         with del_col3:
             st.write("##")
-            if st.button("🔥 Confirmar Eliminación", use_container_width=True):
-                if clave_input == CONTRASENA_CORRECTA:
-                    if id_a_borrar in df_db["ID"].values:
-                        if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado con contraseña"):
-                            registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado usando contraseña TQ2026")
-                            st.success(f"El ítem con ID {id_a_borrar} fue eliminado del inventario activo.")
-                            st.rerun()
-                    else:
-                        st.error("El ID seleccionado no existe en la base de datos.")
+            # --- EN TU ZONA DE ELIMINACIÓN ---
+if st.button("🔥 Confirmar Eliminación", use_container_width=True):
+    if clave_input == CONTRASENA_CORRECTA:
+        # CAMBIO CLAVE: Usamos 'df_raw' en lugar de 'df_db' para verificar la existencia,
+        # porque df_raw tiene todos los datos, incluidos los "ELIMINADO"
+        if id_a_borrar in df_raw["ID"].values:
+            if enviar_datos_formulario(id_a_borrar, "ELIMINADO", "N/A", "N/A", "N/A", "N/A", -1, "SISTEMA", "Ítem purgado"):
+                registrar_movimiento("ELIMINACIÓN", id_a_borrar, "Insumo eliminado")
+                st.success(f"El ítem con ID {id_a_borrar} fue eliminado.")
+                st.cache_data.clear() # Limpiamos caché para que el cambio se refleje
+                st.rerun()
+        else:
+            st.error("El ID seleccionado no existe en la base de datos.")
                 else:
                     st.error("Contraseña incorrecta. Acción denegada.")
     else:
