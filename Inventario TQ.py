@@ -1,250 +1,461 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
+import os
+import hashlib
+from pathlib import Path
 
-st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
+# ============================================
+# CONFIGURACIÓN DE LA APP
+# ============================================
+st.set_page_config(
+    page_title="📦 Gestión de Inventarios TQ",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
+# ============================================
+# ESTILOS CSS PERSONALIZADOS
+# ============================================
+st.markdown("""
+<style>
+    /* Tema oscuro/claro según preferencia */
+    <style>
+    /* Estilos principales */
+    .main {
+        background-color: #0e1117;
+    }
+    .stApp {
+        background: linear-gradient(to bottom right, #0e1117, #1a1a2e);
+    }
+    
+    /* Tarjetas de métricas */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    /* Encabezados */
+    h1, h2, h3 {
+        color: #00d4ff !important;
+        font-weight: bold;
+    }
+    
+    /* Botones primary */
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-weight: bold;
+    }
+    
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(to bottom, #1a1a2e, #0e1117);
+    }
+    
+    /* Alertas */
+    .stAlert {
+        border-radius: 10px;
+    }
+    
+    /* Tablas */
+    .dataframe {
+        border-radius: 10px;
+    }
+    
+    /* Campos de formulario */
+    .stTextInput > div > div > input,
+    .stTextArea > div > div > textarea,
+    .stSelectbox > div > div > div {
+        border-radius: 8px;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================
+# CONFIGURACIÓN DE BASE DE DATOS
+# ============================================
 DB_FILE = 'inventario.db'
 
 def init_db():
+    """Inicializa la base de datos con todas las tablas necesarias"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventario'")
+    
+    # Tabla de inventario principal
+    c.execute("""CREATE TABLE IF NOT EXISTS inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo_insumo TEXT NOT NULL,
+        medidas TEXT,
+        eficiencia TEXT,
+        modelo TEXT,
+        equipo TEXT,
+        cantidad INTEGER DEFAULT 0,
+        cantidad_minima INTEGER DEFAULT 5,
+        proveedor TEXT,
+        costo_unitario REAL DEFAULT 0,
+        realizado_por TEXT,
+        observaciones TEXT,
+        fecha_actualizacion TEXT,
+        fecha_creacion TEXT)""")
+    
+    # Tabla de sistemas
+    c.execute("""CREATE TABLE IF NOT EXISTS sistema (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        tipo_filtro TEXT,
+        modelo TEXT,
+        eficiencia TEXT,
+        medidas TEXT,
+        cantidad INTEGER DEFAULT 0,
+        cantidad_minima INTEGER DEFAULT 5,
+        costo_unitario REAL DEFAULT 0,
+        fecha_actualizacion TEXT,
+        fecha_creacion TEXT)""")
+    
+    # Tabla de historial
+    c.execute("""CREATE TABLE IF NOT EXISTS historial (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha TEXT,
+        accion TEXT,
+        descripcion TEXT,
+        usuario TEXT)""")
+    
+    # Tabla de usuarios
+    c.execute("""CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        rol TEXT DEFAULT 'usuario',
+        fecha_creacion TEXT)""")
+    
+    # Tabla de proveedores
+    c.execute("""CREATE TABLE IF NOT EXISTS proveedores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        contacto TEXT,
+        telefono TEXT,
+        email TEXT,
+        direccion TEXT,
+        observaciones TEXT,
+        fecha_actualizacion TEXT)""")
+    
+    # Tabla de órdenes de pedido
+    c.execute("""CREATE TABLE IF NOT EXISTS ordenes_pedido (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        orden_numero TEXT UNIQUE NOT NULL,
+        insumo_id INTEGER,
+        cantidad_solicitada INTEGER,
+        proveedor TEXT,
+        estado TEXT DEFAULT 'pendiente',
+        fecha_solicitud TEXT,
+        fecha_entrega TEXT,
+        observaciones TEXT,
+        usuario_solicita TEXT)""")
+    
+    # Tabla de configuración
+    c.execute("""CREATE TABLE IF NOT EXISTS configuracion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        clave TEXT UNIQUE,
+        valor TEXT)""")
+    
+    # Crear usuario admin por defecto si no existe
+    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
-        c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
-    if not c.fetchone():
-        c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0, fecha_actualizacion TEXT)''')
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='historial'")
-    if not c.fetchone():
-        c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+        password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
+        fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
+                  ('admin', password_admin, 'administrador', fecha))
+    
     conn.commit()
     conn.close()
 
+# ============================================
+# FUNCIONES DE BASE DE DATOS (SEGURAS)
+# ============================================
 def run_query(query, params=()):
+    """Ejecuta consultas SELECT de forma segura"""
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query(query, conn, params=params if params else ())
     conn.close()
     return df
 
 def execute_query(query, params=()):
+    """Ejecuta consultas INSERT/UPDATE/DELETE de forma segura"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(query, params)
     conn.commit()
     conn.close()
 
-def get_inventario():
-    return run_query("SELECT * FROM inventario")
+def execute_many(query, list_params):
+    """Ejecuta múltiples consultas de una vez"""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.executemany(query, list_params)
+    conn.commit()
+    conn.close()
 
-def get_sistema():
-    return run_query("SELECT * FROM sistema")
+# ============================================
+# FUNCIONES AUXILIARES
+# ============================================
+def hash_password(password):
+    """Hashea una contraseña"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verificar_usuario(username, password):
+    """Verifica credenciales del usuario"""
+    password_hash = hash_password(password)
+    df = run_query("SELECT id, username, rol FROM usuarios WHERE username = ? AND password = ?", 
+                  (username, password_hash))
+    return df.iloc[0] if not df.empty else None
+
+def generar_numero_orden():
+    """Genera un número único para órdenes"""
+    return f"ORD-{datetime.now().strftime('%Y%m%d')}-{int(time.time())}"
+
+def exportar_excel(df, filename):
+    """Exporta DataFrame a Excel"""
+    return df.to_excel(index=False, engine='openpyxl')
+
+def crear_backup():
+    """Crea una copia de seguridad de la base de datos"""
+    if os.path.exists(DB_FILE):
+        fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"backup_inventario_{fecha}.db"
+        import shutil
+        shutil.copy2(DB_FILE, backup_name)
+        return True
+    return False
+
+def obtener_metricas():
+    """Obtiene métricas del sistema"""
+    df_inv = run_query("SELECT * FROM inventario")
+    df_sis = run_query("SELECT * FROM sistema")
+    df_prov = run_query("SELECT * FROM proveedores")
+    df_ord = run_query("SELECT * FROM ordenes_pedido WHERE estado = 'pendiente'")
+    
+    # Stock bajo
+    stock_bajo_inv = df_inv[df_inv['cantidad'] < df_inv['cantidad_minima']]
+    stock_bajo_sis = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
+    
+    # Valor total inventario
+    valor_inv = (df_inv['cantidad'] * df_inv['costo_unitario']).sum()
+    valor_sis = (df_sis['cantidad'] * df_sis['costo_unitario']).sum()
+    
+    return {
+        'total_insumos': len(df_inv),
+        'total_sistemas': len(df_sis),
+        'total_proveedores': len(df_prov),
+        'pendientes': len(df_ord),
+        'stock_bajo_inv': len(stock_bajo_inv),
+        'stock_bajo_sis': len(stock_bajo_sis),
+        'valor_total': valor_inv + valor_sis
+    }
 
 def add_to_historial(accion, descripcion, usuario):
+    """Agrega entrada al historial"""
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
+    execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)",
+                  (fecha, accion, descripcion, usuario))
 
-def mostrar_mensaje_exito(mensaje):
-    success_placeholder = st.empty()
-    success_placeholder.success(mensaje)
-    time.sleep(5)
-    success_placeholder.empty()
+def mostrar_mensaje(mensaje, tipo='success'):
+    """Muestra mensaje temporal"""
+    if tipo == 'success':
+        placeholder = st.empty()
+        placeholder.success(mensaje)
+        time.sleep(3)
+        placeholder.empty()
+    elif tipo == 'error':
+        placeholder = st.empty()
+        placeholder.error(mensaje)
+        time.sleep(3)
+        placeholder.empty()
+    elif tipo == 'warning':
+        placeholder = st.empty()
+        placeholder.warning(mensaje)
+        time.sleep(3)
+        placeholder.empty()
 
-init_db()
+# ============================================
+# GESTIÓN DE SESIÓN
+# ============================================
+if 'sesion_iniciada' not in st.session_state:
+    st.session_state.sesion_iniciada = False
+if 'usuario_actual' not in st.session_state:
+    st.session_state.usuario_actual = None
+if 'rol_usuario' not in st.session_state:
+    st.session_state.rol_usuario = None
 
-st.title("📦 Plataforma de Gestion de Inventarios")
+def cerrar_sesion():
+    st.session_state.sesion_iniciada = False
+    st.session_state.usuario_actual = None
+    st.session_state.rol_usuario = None
+    st.rerun()
 
-menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "➕ Agregar Sistema", "🔍 Buscar Sistema", "📜 Historial"])
-
-if menu == "🏠 Inicio":
-    st.header("Panel de Control en Tiempo Real")
-    df = get_inventario()
-    df_sis = get_sistema()
-    col1, col2 = st.columns(2)
-    col1.metric("Total Insumos", len(df))
-    col2.metric("Total Sistemas", len(df_sis))
-    st.markdown("---")
-    st.subheader("⚠️ Alerta: Stock Bajo (< 5 unidades)")
-    if not df.empty:
-        low_stock = df[df['cantidad'] < 5]
-        if not low_stock.empty:
-            st.error(f"¡Tienes {len(low_stock)} insumos con stock crítico!")
-            st.dataframe(low_stock.set_index('id'), use_container_width=True)
-        else:
-            st.success("✅ Inventario en niveles óptimos.")
-    if not df_sis.empty:
-        low_stock_sis = df_sis[df_sis['cantidad'] < 5]
-        if not low_stock_sis.empty:
-            st.warning(f"¡Tienes {len(low_stock_sis)} sistemas con stock crítico!")
-    st.subheader("📋 Vista General del Inventario")
-    st.dataframe(df.set_index('id'), use_container_width=True)
-
-elif menu == "➕ Agregar Insumo":
-    st.header("Agregar Nuevo Insumo")
-    with st.form("form_agregar"):
-        c1, c2 = st.columns(2)
-        tipo = c1.text_input("Tipo de Insumo *")
-        modelo = c1.text_input("Modelo")
-        medidas = c2.text_input("Medidas")
-        eficiencia = c2.text_input("Eficiencia")
-        c3, c4 = st.columns(2)
-        equipo = c3.text_input("Equipo")
-        cantidad = c4.number_input("Cantidad Actual *", min_value=0, step=1)
-        realizado_por = st.text_input("Realizado por")
-        observaciones = st.text_area("Observaciones")
-        submit = st.form_submit_button("💾 Guardar Insumo")
-        if submit and tipo:
-            fecha_actual = datetime.now().strftime("%Y-%m-%d")
-            cantidad_int = int(cantidad) if cantidad else 0
-            sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES ('{tipo}', '{medidas if medidas else ''}', '{eficiencia if eficiencia else ''}', '{modelo if modelo else ''}', '{equipo if equipo else ''}', {cantidad_int}, '{realizado_por if realizado_por else ''}', '{observaciones if observaciones else ''}', '{fecha_actual}')"""
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute(sql)
-            conn.commit()
-            conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR INSUMO", f"Insumo: {tipo} | Cantidad: {cantidad_int} | Modelo: {modelo if modelo else 'N/A'}", realizado_por if realizado_por else "Usuario")
-            mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
-            st.rerun()
-        elif submit:
-            st.warning("Por favor complete los campos obligatorios (*).")
-
-elif menu == "✏️ Modificar Insumo":
-    st.header("Modificar Insumo Existente")
-    df = get_inventario()
-    if df.empty:
-        st.info("No hay insumos para modificar.")
-    else:
-        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccione Insumo a Modificar", opciones)
-        if seleccion:
-            item_id = int(seleccion.split(" - ")[0])
-            item = df[df['id'] == item_id].iloc[0]
-            with st.form("form_modificar"):
-                c1, c2 = st.columns(2)
-                tipo = c1.text_input("Tipo de Insumo", value=item['tipo_insumo'])
-                modelo = c1.text_input("Modelo", value=item['modelo'])
-                medidas = c2.text_input("Medidas", value=item['medidas'])
-                eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
-                c3, c4 = st.columns(2)
-                equipo = c3.text_input("Equipo", value=item['equipo'])
-                cantidad = c4.number_input("Cantidad Actual", min_value=0, value=int(item['cantidad']))
-                observaciones = st.text_area("Observaciones", value=item['observaciones'])
-                submit = st.form_submit_button("✏️ Actualizar")
-                if submit:
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    cantidad_actual = int(cantidad)
-                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={cantidad_actual}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute(sql)
-                    conn.commit()
-                    conn.close()
-                    # Historial detallado
-                    add_to_historial("MODIFICAR INSUMO", f"ID: {item_id} | Nuevo: {tipo} | Cantidad: {cantidad_actual} | Modelo: {modelo if modelo else 'N/A'}", "Usuario")
-                    mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
+# ============================================
+# PÁGINA DE LOGIN
+# ============================================
+def pagina_login():
+    """Página de inicio de sesión"""
+    st.markdown("""
+    <div style='text-align: center; padding: 50px;'>
+        <h1 style='font-size: 60px;'>📦</h1>
+        <h2 style='color: #00d4ff;'>Gestión de Inventarios TQ</h2>
+        <p style='color: #888;'>Ingrese sus credenciales para continuar</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("form_login"):
+            usuario = st.text_input("Usuario")
+            password = st.text_input("Contraseña", type="password")
+            submit = st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True)
+            
+            if submit:
+                usuario_verificado = verificar_usuario(usuario, password)
+                if usuario_verificado is not None:
+                    st.session_state.sesion_iniciada = True
+                    st.session_state.usuario_actual = usuario_verificado['username']
+                    st.session_state.rol_usuario = usuario_verificado['rol']
+                    add_to_historial("LOGIN", f"Usuario {usuario} inició sesión", usuario)
                     st.rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas")
+        
+        st.markdown("---")
+        st.info("💡 Credenciales por defecto: admin / TQ2026")
 
-elif menu == "🗑️ Eliminar Insumo":
-    st.header("Eliminar Insumo")
-    df = get_inventario()
-    if df.empty:
-        st.info("Inventario vacío.")
-    else:
-        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccione Insumo a Eliminar", opciones)
-        passwd = st.text_input("Ingrese Contraseña para Confirmar Eliminación", type="password")
-        if st.button("🗑️ Eliminar Definitivamente"):
-            if passwd == "TQ2026":
-                item_id = int(seleccion.split(" - ")[0])
-                nombre_insumo = df[df['id'] == item_id]['tipo_insumo'].values[0]
-                cantidad_insumo = df[df['id'] == item_id]['cantidad'].values[0]
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                c.execute(f"DELETE FROM inventario WHERE id={item_id}")
-                conn.commit()
-                conn.close()
-                # Historial detallado
-                add_to_historial("ELIMINAR INSUMO", f"ID: {item_id} | Insumo: {nombre_insumo} | Cantidad: {cantidad_insumo}", "Admin")
-                mostrar_mensaje_exito("✅ Insumo eliminado exitosamente!")
-                st.rerun()
+# ============================================
+# DASHBOARD PRINCIPAL
+# ============================================
+def mostrar_dashboard():
+    """Muestra el dashboard principal"""
+    metricas = obtener_metricas()
+    
+    st.header("📊 Panel de Control en Tiempo Real")
+    
+    # Métricas principales
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("📦 Total Insumos", metricas['total_insumos'])
+    col2.metric("⚙️ Total Sistemas", metricas['total_sistemas'])
+    col3.metric("🚚 Proveedores", metricas['total_proveedores'])
+    col4.metric("💰 Valor Inventario", f"${metricas['valor_total']:,.2f}")
+    
+    st.markdown("---")
+    
+    # Alertas de stock bajo
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("⚠️ Alerta: Insumos Stock Bajo")
+        df = run_query("SELECT * FROM inventario")
+        if not df.empty:
+            stock_bajo = df[df['cantidad'] < df['cantidad_minima']]
+            if not stock_bajo.empty:
+                st.error(f"¡Tienes {len(stock_bajo)} insumos con stock crítico!")
+                st.dataframe(stock_bajo[['id', 'tipo_insumo', 'modelo', 'cantidad', 'cantidad_minima', 'proveedor']].set_index('id'), 
+                           use_container_width=True)
             else:
-                st.error("❌ Contraseña incorrecta.")
-
-elif menu == "🔍 Buscar Inventario":
-    st.header("🔍 Buscar Insumo en Inventario")
-    df = get_inventario()
-    if df.empty:
-        st.info("No hay insumos registrados.")
-    else:
-        campo_busqueda = st.selectbox("Seleccione campo de búsqueda:", ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"])
-        texto_busqueda = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
-        if texto_busqueda:
-            resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
-            if not resultado.empty:
-                st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR INSUMO", f"Busqueda: {texto_busqueda} | Campo: {campo_busqueda} | Resultados: {len(resultado)}", "Usuario")
-                st.dataframe(resultado.set_index('id'), use_container_width=True)
+                st.success("✅ Inventario en niveles óptimos")
+    
+    with c2:
+        st.subheader("⚠️ Alerta: Sistemas Stock Bajo")
+        df_sis = run_query("SELECT * FROM sistema")
+        if not df_sis.empty:
+            stock_bajo_sis = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
+            if not stock_bajo_sis.empty:
+                st.warning(f"¡Tienes {len(stock_bajo_sis)} sistemas con stock crítico!")
+                st.dataframe(stock_bajo_sis[['id', 'nombre', 'modelo', 'cantidad', 'cantidad_minima']].set_index('id'),
+                           use_container_width=True)
             else:
-                st.warning(f"⚠️ No se encontraron resultados")
+                st.success("✅ Sistemas en niveles óptimos")
+    
+    st.markdown("---")
+    
+    # Órdenes pendientes
+    st.subheader("📋 Órdenes de Pedido Pendientes")
+    df_ord = run_query("SELECT * FROM ordenes_pedido WHERE estado = 'pendiente'")
+    if not df_ord.empty:
+        st.info(f"Tienes {len(df_ord)} órdenes pendientes de atención")
+        st.dataframe(df_ord.set_index('id'), use_container_width=True)
+    else:
+        st.success("✅ No hay órdenes pendientes")
+    
+    st.markdown("---")
+    
+    # Vista general
+    st.subheader("📋 Vista General del Inventario")
+    df = run_query("SELECT * FROM inventario")
+    if not df.empty:
+        # Opción de búsqueda rápida
+        Buscar = st.text_input("🔍 Búsqueda rápida:", placeholder="Buscar en inventario...")
+        if Buscar:
+            df_filtrado = df[df['tipo_insumo'].str.contains(Buscar, case=False, na=False) | 
+                           df['modelo'].str.contains(Buscar, case=False, na=False)]
+            st.dataframe(df_filtrado.set_index('id'), use_container_width=True)
         else:
             st.dataframe(df.set_index('id'), use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Gráficos estadísticos
+    st.subheader("📈 Estadísticas del Inventario")
+    col_g1, col_g2 = st.columns(2)
+    
+    with col_g1:
+        # Top 10 insumos por cantidad
+        df = run_query("SELECT tipo_insumo, cantidad FROM inventario ORDER BY cantidad DESC LIMIT 10")
+        if not df.empty:
+            st.bar_chart(data=df.set_index('tipo_insumo'), use_container_width=True)
+    
+    with col_g2:
+        # Distribución por equipo
+        df = run_query("SELECT equipo, COUNT(*) as total FROM inventario GROUP BY equipo")
+        if not df.empty:
+            st.bar_chart(data=df.set_index('equipo'), use_container_width=True)
 
-elif menu == "➕ Agregar Sistema":
-    st.header("Agregar Nuevo Sistema")
-    with st.form("form_sistema_agregar"):
-        c1, c2 = st.columns(2)
-        nombre = c1.text_input("Nombre del Sistema *")
-        tipo_filtro = c1.text_input("Tipo de Filtro")
-        modelo = c2.text_input("Modelo")
-        eficiencia = c2.text_input("Eficiencia")
-        c3, c4 = st.columns(2)
-        medidas = c3.text_input("Medidas")
-        cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
-        submit = st.form_submit_button("💾 Guardar Sistema")
-        if submit and nombre:
-            fecha_actual = datetime.now().strftime("%Y-%m-%d")
-            cantidad_int = int(cantidad) if cantidad else 0
-            sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES ('{nombre}', '{tipo_filtro if tipo_filtro else ''}', '{modelo if modelo else ''}', '{eficiencia if eficiencia else ''}', '{medidas if medidas else ''}', {cantidad_int}, '{fecha_actual}')"""
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute(sql)
-            conn.commit()
-            conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR SISTEMA", f"Sistema: {nombre} | Cantidad: {cantidad_int} | Tipo Filtro: {tipo_filtro if tipo_filtro else 'N/A'}", "Usuario")
-            mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
-            st.rerun()
-        elif submit:
-            st.warning("Complete los campos obligatorios (*).")
-
-elif menu == "🔍 Buscar Sistema":
-    st.header("🔍 Buscar Sistema")
-    df_sis = get_sistema()
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
-        texto_busqueda_sis = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
-        if texto_busqueda_sis:
-            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
-            if not resultado_sis.empty:
-                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR SISTEMA", f"Busqueda: {texto_busqueda_sis} | Campo: {campo_busqueda_sis} | Resultados: {len(resultado_sis)}", "Usuario")
-                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron resultados")
-        else:
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-elif menu == "📜 Historial":
-    st.header("📜 Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+# ============================================
+# AGREGAR INSUMO
+# ============================================
+def pagina_agregar_insumo():
+    """Página para agregar nuevo insumo"""
+    st.header("➕ Agregar Nuevo Insumo")
+    
+    with st.form("form_agregar"):
+        col1, col2 = st.columns(2)
+        with col1:
+            tipo = st.text_input("Tipo de Insumo *")
+            modelo = st.text_input("Modelo")
+            medidas = st.text_input("Medidas")
+            eficiencia = st.text_input("Eficiencia")
+        
+        with col2:
+            equipo = st.text_input("Equipo")
+            cantidad = st.number_input("Cantidad Actual *", min_value=0, step=1, value=0)
+            cantidad_min = st.number_input("Stock Mínimo", min_value=0, step=1, value=5)
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            proveedor = st.text_input("Proveedor")
+            costo = st.number_input("Costo Unitario ($)", min_value=0.0, step=0.01, value=0.0)
+        
+        with col4:
+            realizado_por = st.text_input("Registrado por")
+            observaciones = st.text_area("Observaciones")
+        
+        submit = st.form_submit_button("💾 Guardar Insumo", use_container_width=True)
+        
+        if submit and tipo:
+            try:
+                fecha_actual = datetime.now().strftime("%Y-%m-%d")
+                execute_query("""INSERT INTO inventario 
+                    (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, cantidad_minima, 
+                     proveedor, costo
