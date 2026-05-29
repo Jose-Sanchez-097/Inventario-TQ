@@ -113,6 +113,7 @@ if st.session_state.edit_id is None:
         else:
             st.warning("Por favor llena los campos obligatorios (Tipo, Cantidad y Verificado Por).")
 else:
+    # --- BOTÓN DE GUARDAR CAMBIOS (CORREGIDO) ---
     if b_col1.button("💾 Guardar Cambios", use_container_width=True):
         try:
             cant_val = float(cantidad)
@@ -125,25 +126,19 @@ else:
                 c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
                 eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
                 
-                # --- LÍNEAS 145-155 (Dentro del botón "Guardar Cambios") ---
-if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
-    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad}")
-    st.session_state.edit_id = None
-    
-    # Notificación rápida
-    st.toast("Cambios guardados. Sincronizando...", icon="✅")
-    
-    # Limpieza de caché para forzar la lectura del nuevo valor en la próxima pasada
-    st.cache_data.clear()
-    st.rerun()
+                # --- AQUÍ ESTABA EL ERROR: EL IF DEBÍA ESTAR DENTRO DEL TRY ---
+                if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
+                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad}")
+                    st.session_state.edit_id = None
+                    st.toast("Cambios guardados. Sincronizando...", icon="✅")
+                    st.cache_data.clear()
+                    st.rerun()
             else:
                 st.warning("Debes indicar quién está verificando este cambio en 'Verificado Por'.")
         except ValueError:
             st.error("Por favor, introduce un número válido en Cantidad Actual.")
-            
-    if b_col2.button("❌ Cancelar Edición", use_container_width=True):
-        st.session_state.edit_id = None
-        st.rerun()
+        except Exception as e:
+            st.error(f"Ocurrió un error: {e}")
 
 st.markdown("---")
 
