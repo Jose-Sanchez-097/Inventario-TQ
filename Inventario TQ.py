@@ -3,49 +3,36 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(
-    page_title="Gestión de Inventarios TQ",
-    page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Configuracion de la pagina
+st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS DINÁMICO PARA TEMA OSCURO/CLARO ---
+# CSS dinamico para tema oscuro/claro
 css_themes = """
 <style>
-    @media (prefers-color-scheme: dark) {
-        .stApp { background-color: #0e1117; color: #fafafa; }
-        .stSidebar { background-color: #262730; }
-        .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {
-            background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a;
-        }
-        .stButton > button {
-            background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a;
-        }
-        .stButton > button:hover { background-color: #4a4a4a; }
-        .stDataFrame { background-color: #262730; }
-        div[data-testid="stMetricValue"] { color: #fafafa; }
-        h1, h2, h3, h4, h5, h6 { color: #fafafa; }
-    }
-    @media (prefers-color-scheme: light) {
-        .stApp { background-color: #ffffff; color: #262730; }
-        .stSidebar { background-color: #f0f2f6; }
-        .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div {
-            background-color: #ffffff; color: #262730; border: 1px solid #e0e0e0;
-        }
-        .stButton > button {
-            background-color: #ff4b4b; color: #ffffff; border: none;
-        }
-        .stButton > button:hover { background-color: #ff2b2b; }
-        div[data-testid="stMetricValue"] { color: #262730; }
-        h1, h2, h3, h4, h5, h6 { color: #262730; }
-    }
+@media (prefers-color-scheme: dark) {
+.stApp { background-color: #0e1117; color: #fafafa; }
+.stSidebar { background-color: #262730; }
+.stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; }
+.stButton > button { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; }
+.stButton > button:hover { background-color: #4a4a4a; }
+.stDataFrame { background-color: #262730; }
+div[data-testid="stMetricValue"] { color: #fafafa; }
+h1, h2, h3, h4, h5, h6 { color: #fafafa; }
+}
+@media (prefers-color-scheme: light) {
+.stApp { background-color: #ffffff; color: #262730; }
+.stSidebar { background-color: #f0f2f6; }
+.stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #ffffff; color: #262730; border: 1px solid #e0e0e0; }
+.stButton > button { background-color: #ff4b4b; color: #ffffff; border: none; }
+.stButton > button:hover { background-color: #ff2b2b; }
+div[data-testid="stMetricValue"] { color: #262730; }
+h1, h2, h3, h4, h5, h6 { color: #262730; }
+}
 </style>
 """
 st.markdown(css_themes, unsafe_allow_html=True)
 
-# --- BASE DE DATOS (SQLite) ---
+# Base de datos SQLite
 DB_FILE = 'inventario.db'
 
 def init_db():
@@ -80,15 +67,15 @@ def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
 
-# --- INICIALIZAR ---
+# Inicializar
 init_db()
 
-# --- INTERFAZ DE USUARIO ---
-st.title("📦 Plataforma de Gestión de Inventarios")
+# Interfaz de usuario
+st.title("📦 Plataforma de Gestion de Inventarios")
 
-menu = st.sidebar.selectbox("Menú Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "⚙️ Sistema", "🔍 Buscar Sistema", "📜 Historial"])
+menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "⚙️ Sistema", "🔍 Buscar Sistema", "📜 Historial"])
 
-# --- 1. INICIO ---
+# Inicio
 if menu == "🏠 Inicio":
     st.header("Panel de Control en Tiempo Real")
     df = get_inventario()
@@ -112,7 +99,7 @@ if menu == "🏠 Inicio":
     st.subheader("📋 Vista General del Inventario")
     st.dataframe(df.set_index('id'), use_container_width=True)
 
-# --- 2. AGREGAR INSUMO ---
+# Agregar Insumo
 elif menu == "➕ Agregar Insumo":
     st.header("Agregar Nuevo Insumo")
     with st.form("form_agregar"):
@@ -145,7 +132,7 @@ elif menu == "➕ Agregar Insumo":
             else:
                 st.warning("Por favor complete los campos obligatorios (*).")
 
-# --- 3. MODIFICAR INSUMO ---
+# Modificar Insumo
 elif menu == "✏️ Modificar Insumo":
     st.header("Modificar Insumo Existente")
     df = get_inventario()
@@ -186,7 +173,7 @@ elif menu == "✏️ Modificar Insumo":
                     else:
                         st.error("❌ Contraseña incorrecta. Use TQ2026")
 
-# --- 4. ELIMINAR INSUMO ---
+# Eliminar Insumo
 elif menu == "🗑️ Eliminar Insumo":
     st.header("Eliminar Insumo")
     df = get_inventario()
@@ -206,7 +193,7 @@ elif menu == "🗑️ Eliminar Insumo":
             else:
                 st.error("❌ Contraseña incorrecta.")
 
-# --- 5. BUSCAR INSUMO ---
+# Buscar Insumo
 elif menu == "🔍 Buscar Insumo":
     st.header("Buscar Insumo")
     df = get_inventario()
@@ -220,7 +207,7 @@ elif menu == "🔍 Buscar Insumo":
         else:
             st.dataframe(df.set_index('id'), use_container_width=True)
 
-# --- 6. SISTEMA (AGREGAR) ---
+# Sistema
 elif menu == "⚙️ Sistema":
     st.header("Gestión de Sistema")
     tab1, tab2, tab3 = st.tabs(["➕ Agregar", "✏️ Modificar", "🗑️ Eliminar"])
@@ -251,8 +238,6 @@ elif menu == "⚙️ Sistema":
                     st.success("✅ Sistema agregado.")
                 else:
                     st.warning("Complete los campos obligatorios (*).")
-
-# --- SISTEMA (MODIFICAR) ---
     with tab2:
         st.subheader("Modificar Sistema")
         df_sis = get_sistema()
@@ -290,8 +275,6 @@ elif menu == "⚙️ Sistema":
                             st.success("✅ Sistema actualizado.")
                         else:
                             st.error("❌ Contraseña incorrecta.")
-
-# --- SISTEMA (ELIMINAR) ---
     with tab3:
         st.subheader("Eliminar Sistema")
         df_sis = get_sistema()
@@ -311,7 +294,7 @@ elif menu == "⚙️ Sistema":
                 else:
                     st.error("❌ Contraseña incorrecta.")
 
-# --- 7. BUSCAR SISTEMA ---
+# Buscar Sistema
 elif menu == "🔍 Buscar Sistema":
     st.header("Buscar Sistema")
     df_sis = get_sistema()
@@ -320,4 +303,16 @@ elif menu == "🔍 Buscar Sistema":
     else:
         criterio = st.text_input("Ingrese texto a buscar (Nombre, Tipo de Filtro, Modelo)")
         if criterio:
-            resultado = df_sis[df_sis['nombre'].str.contains(criterio, case=False, na=False) | df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) |
+            resultado = df_sis[df_sis['nombre'].str.contains(criterio, case=False, na=False) | df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) | df_sis['modelo'].str.contains(criterio, case=False, na=False)]
+            st.dataframe(resultado.set_index('id'), use_container_width=True)
+        else:
+            st.dataframe(df_sis.set_index('id'), use_container_width=True)
+
+# Historial
+elif menu == "📜 Historial":
+    st.header("Historial de Movimientos")
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True
