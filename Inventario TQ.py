@@ -46,7 +46,6 @@ def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
 
-# Función para mostrar mensaje con espera
 def mostrar_mensaje_exito(mensaje):
     success_placeholder = st.empty()
     success_placeholder.success(mensaje)
@@ -99,25 +98,13 @@ elif menu == "➕ Agregar Insumo":
         if submit and tipo:
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             cantidad_int = int(cantidad) if cantidad else 0
-            
-            tipo_val = tipo if tipo else ""
-            modelo_val = modelo if modelo else ""
-            medidas_val = medidas if medidas else ""
-            eficiencia_val = eficiencia if eficiencia else ""
-            equipo_val = equipo if equipo else ""
-            realizado_por_val = realizado_por if realizado_por else ""
-            observaciones_val = observaciones if observaciones else ""
-            
-            sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) 
-            VALUES ('{tipo_val}', '{medidas_val}', '{eficiencia_val}', '{modelo_val}', '{equipo_val}', {cantidad_int}, '{realizado_por_val}', '{observaciones_val}', '{fecha_actual}')"""
-            
+            sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES ('{tipo}', '{medidas if medidas else ''}', '{eficiencia if eficiencia else ''}', '{modelo if modelo else ''}', '{equipo if equipo else ''}', {cantidad_int}, '{realizado_por if realizado_por else ''}', '{observaciones if observaciones else ''}', '{fecha_actual}')"""
             conn = sqlite3.connect(DB_FILE)
             c = conn.cursor()
             c.execute(sql)
             conn.commit()
             conn.close()
-            
-            add_to_historial("ALTA", f"Insumo: {tipo_val}", realizado_por_val)
+            add_to_historial("ALTA", f"Insumo: {tipo}", realizado_por if realizado_por else "Usuario")
             mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
             st.rerun()
         elif submit:
@@ -148,21 +135,12 @@ elif menu == "✏️ Modificar Insumo":
                 submit = st.form_submit_button("✏️ Actualizar")
                 if submit and passwd == "TQ2026":
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    tipo_val = tipo if tipo else ""
-                    modelo_val = modelo if modelo else ""
-                    medidas_val = medidas if medidas else ""
-                    eficiencia_val = eficiencia if eficiencia else ""
-                    equipo_val = equipo if equipo else ""
-                    observaciones_val = observaciones if observaciones else ""
-                    
-                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo_val}', medidas='{medidas_val}', eficiencia='{eficiencia_val}', modelo='{modelo_val}', equipo='{equipo_val}', cantidad={int(cantidad)}, observaciones='{observaciones_val}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
-                    
+                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={int(cantidad)}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
                     c.execute(sql)
                     conn.commit()
                     conn.close()
-                    
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Admin")
                     mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
                     st.rerun()
@@ -228,22 +206,13 @@ elif menu == "⚙️ Sistema":
             if submit and nombre:
                 fecha_actual = datetime.now().strftime("%Y-%m-%d")
                 cantidad_int = int(cantidad) if cantidad else 0
-                nombre_val = nombre
-                tipo_filtro_val = tipo_filtro if tipo_filtro else ""
-                modelo_val = modelo if modelo else ""
-                eficiencia_val = eficiencia if eficiencia else ""
-                medidas_val = medidas if medidas else ""
-                
-                sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) 
-                VALUES ('{nombre_val}', '{tipo_filtro_val}', '{modelo_val}', '{eficiencia_val}', '{medidas_val}', {cantidad_int}, '{fecha_actual}')"""
-                
+                sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES ('{nombre}', '{tipo_filtro if tipo_filtro else ''}', '{modelo if modelo else ''}', '{eficiencia if eficiencia else ''}', '{medidas if medidas else ''}', {cantidad_int}, '{fecha_actual}')"""
                 conn = sqlite3.connect(DB_FILE)
                 c = conn.cursor()
                 c.execute(sql)
                 conn.commit()
                 conn.close()
-                
-                add_to_historial("ALTA SISTEMA", f"Sistema: {nombre_val}", "Usuario")
+                add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
                 mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
                 st.rerun()
             elif submit:
@@ -272,20 +241,12 @@ elif menu == "⚙️ Sistema":
                     submit = st.form_submit_button("✏️ Actualizar Sistema")
                     if submit and passwd == "TQ2026":
                         fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                        nombre_val = nombre
-                        tipo_filtro_val = tipo_filtro if tipo_filtro else ""
-                        modelo_val = modelo if modelo else ""
-                        eficiencia_val = eficiencia if eficiencia else ""
-                        medidas_val = medidas if medidas else ""
-                        
-                        sql = f"""UPDATE sistema SET nombre='{nombre_val}', tipo_filtro='{tipo_filtro_val}', modelo='{modelo_val}', eficiencia='{eficiencia_val}', medidas='{medidas_val}', cantidad={int(cantidad)}, fecha_actualizacion='{fecha_actual}' WHERE id={sis_id}"""
-                        
+                        sql = f"""UPDATE sistema SET nombre='{nombre}', tipo_filtro='{tipo_filtro if tipo_filtro else ''}', modelo='{modelo if modelo else ''}', eficiencia='{eficiencia if eficiencia else ''}', medidas='{medidas if medidas else ''}', cantidad={int(cantidad)}, fecha_actualizacion='{fecha_actual}' WHERE id={sis_id}"""
                         conn = sqlite3.connect(DB_FILE)
                         c = conn.cursor()
                         c.execute(sql)
                         conn.commit()
                         conn.close()
-                        
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
                         mostrar_mensaje_exito("✅ Sistema actualizado exitosamente!")
                         st.rerun()
@@ -321,4 +282,19 @@ elif menu == "🔍 Buscar Sistema":
         st.info("No hay sistemas registrados.")
     else:
         campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
-        texto_busqueda_sis = st.text_input("
+        texto_busqueda_sis = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
+        if texto_busqueda_sis:
+            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
+            if not resultado_sis.empty:
+                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
+                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron resultados")
+        else:
+            st.dataframe(df_sis.set_index('id'), use_container_width=True)
+
+elif menu == "📜 Historial":
+    st.header("📜 Historial de Movimientos")
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
