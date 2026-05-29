@@ -6,7 +6,9 @@ import requests
 # Configuración de la página web
 st.set_page_config(page_title="Inventario TQ Online", layout="wide")
 st.title("📦 Control de Inventario e Historial TQ")
-
+@st.cache_data(ttl=30)
+    def obtener_datos_rapido(url):
+    return pd.read_csv(url)
 # --- CONFIGURACIÓN DE SEGURIDAD ---
 CONTRASENA_CORRECTA = "TQ2026"
 
@@ -18,9 +20,7 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
-    @st.cache_data(ttl=30)
-    def obtener_datos_rapido(url):
-    return pd.read_csv(url)
+    df_raw = pd.read_csv(URL_LECTURA_DIRECTA) 
     
     if not df_raw.empty:
         # Limpiamos espacios en blanco de los encabezados
