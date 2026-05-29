@@ -21,24 +21,28 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Eliminar tablas existentes para recrear con estructura correcta
-    c.execute("DROP TABLE IF EXISTS inventario")
-    c.execute("DROP TABLE IF EXISTS sistema")
-    c.execute("DROP TABLE IF EXISTS historial")
-    c.execute("DROP TABLE IF EXISTS usuarios")
+    # Crear tablas sin eliminar las existentes
+    c.execute('''CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
     
-    # Crear tablas con estructura correcta
-    c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
+    # Verificar si tabla sistema existe y crearla sin cantidad_minima
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
+    if c.fetchone():
+        # Tabla existe, agregar columna cantidad_minima si no existe
+        try:
+            c.execute("ALTER TABLE sistema ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
+        except:
+            pass  # La columna ya existe
+    else:
+        # Crear tabla sistema SIN cantidad_minima
+        c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, fecha TEXT)''')
     
-    c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, cantidad_minima INTEGER DEFAULT 5, fecha TEXT)''')
-    
-    c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
-    
-    c.execute('''CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
-    
-    # Crear usuario admin
-    password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
-    c.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)", ('admin', password_admin, 'administrador'))
+    # crear admin
+    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
+    if not c.fetchone():
+        password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
+        c.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)", ('admin', password_admin, 'administrador'))
     
     conn.commit()
     conn.close()
@@ -137,7 +141,7 @@ def mostrar_dashboard():
         st.subheader("⚠️ Stock Bajo - Sistemas")
         if not df_sis.empty:
             stock = df_sis[df_sis['cantidad'] < df_sis.get('cantidad_minima', 5)]
-            if not stock.empty: st.warning(f"¡{len(stock)} kritis!")
+            if not stock.empty: st.warning(f"¡{len(stock)} críticos!")
             else: st.success("✅ OK")
     st.markdown("---")
     st.subheader("📋 Inventario")
@@ -146,7 +150,7 @@ def mostrar_dashboard():
     st.dataframe(df_sis)
 
 def pagina_agregar_insumo():
-    st.header(" ➕ Agregar Insumo")
+    st.header("➕ Agregar Insumo")
     with st.form("form_agregar"):
         c1, c2 = st.columns(2)
         with c1:
@@ -232,8 +236,9 @@ def pagina_agregar_sistema():
         submit = st.form_submit_button("💾 Guardar")
         if submit and equipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
-            execute_query("INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, cantidad_minima, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", 5, fecha))
+            # SIN cantidad_minima - solo 9 valores
+            execute_query("INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha))
             add_to_historial("AGREGAR SISTEMA", equipo, st.session_state.usuario_actual)
             mostrar_mensaje("✅ Sistema guardado!", 'success')
             st.rerun()
