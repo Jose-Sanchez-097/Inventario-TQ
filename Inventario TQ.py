@@ -25,13 +25,19 @@ try:
         df_raw.columns = [str(c).strip() for c in df_raw.columns]
         df_raw = df_raw.dropna(how="all")
         
-        # Mapeo de columnas (simplificado para brevedad)
-        mapa_columnas = {c: "ID" for c in df_raw.columns if "ID" in c.upper() and len(c) < 6}
-        # (Aquí mantén tu lógica completa de mapa_columnas que ya tenías)
-        df_raw = df_raw.rename(columns=mapa_columnas)
-        
-        # Consolidación
+        # Consolidación: tomamos el último registro de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
+
+        # --- AÑADE ESTE BLOQUE DE LIMPIEZA Y FILTRADO AQUÍ ---
+        # 1. Filtro estricto: Elimina filas marcadas como ELIMINADO y cantidades negativas
+        df_db = df_db[
+            (df_db["Tipo Insumo"].astype(str).str.upper() != "ELIMINADO") & 
+            (df_db["Cant. Actual"] >= 0)
+        ].copy()
+        
+        # 2. Reemplaza todos los valores nulos o "nan" por "N/A" para que la UI se vea limpia
+        df_db = df_db.fillna("N/A")
+        # -----------------------------------------------------
         
         # --- PARCHE DE SINCRONIZACIÓN ---
         if "edit_id" in st.session_state and st.session_state.edit_id is not None:
