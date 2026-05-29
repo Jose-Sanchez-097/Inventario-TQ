@@ -58,19 +58,6 @@ with st.expander("🗑️ Zona de Eliminación"):
 
 df_db = obtener_inventario_limpio()
 # ... resto de tu código de visualización ...
-        
-        # Consolidación: tomamos el último registro de cada ID
-        df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
-
-        # --- AÑADE ESTE BLOQUE DE LIMPIEZA Y FILTRADO AQUÍ ---
-        # 1. Filtro estricto: Elimina filas marcadas como ELIMINADO y cantidades negativas
-        df_db = df_db[
-            (df_db["Tipo Insumo"].astype(str).str.upper() != "ELIMINADO") & 
-            (df_db["Cant. Actual"] >= 0)
-        ].copy()
-        
-        # 2. Reemplaza todos los valores nulos o "nan" por "N/A" para que la UI se vea limpia
-        df_db = df_db.fillna("N/A")
         # -----------------------------------------------------
         
         # --- PARCHE DE SINCRONIZACIÓN ---
