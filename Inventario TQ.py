@@ -131,9 +131,8 @@ elif menu == "✏️ Modificar Insumo":
                 equipo = c3.text_input("Equipo", value=item['equipo'])
                 cantidad = c4.number_input("Cantidad Actual", min_value=0, value=int(item['cantidad']))
                 observaciones = st.text_area("Observaciones", value=item['observaciones'])
-                passwd = st.text_input("Contraseña (Requerido para modificar)", type="password")
                 submit = st.form_submit_button("✏️ Actualizar")
-                if submit and passwd == "TQ2026":
+                if submit:
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
                     sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={int(cantidad)}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
                     conn = sqlite3.connect(DB_FILE)
@@ -141,11 +140,9 @@ elif menu == "✏️ Modificar Insumo":
                     c.execute(sql)
                     conn.commit()
                     conn.close()
-                    add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Admin")
+                    add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Usuario")
                     mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
                     st.rerun()
-                elif submit:
-                    st.error("❌ Contraseña incorrecta. Use TQ2026")
 
 elif menu == "🗑️ Eliminar Insumo":
     st.header("Eliminar Insumo")
@@ -298,3 +295,5 @@ elif menu == "📜 Historial":
     df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
     if df_hist.empty:
         st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
