@@ -18,7 +18,9 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
-    df_raw = pd.read_csv(URL_LECTURA_DIRECTA)
+    @st.cache_data(ttl=30)
+def obtener_datos_rapido(url):
+    return pd.read_csv(url)
     
     if not df_raw.empty:
         # Limpiamos espacios en blanco de los encabezados
@@ -81,6 +83,12 @@ try:
         if not df_db.empty:
             df_db = df_db[df_db["Tipo Insumo"] != "ELIMINADO"]
             df_db = df_db[df_db["Cant. Actual"] >= 0]
+            # --- LÍNEAS 65-70 (Justo después del filtrado df_db) ---
+if st.session_state.get("edit_id") is not None:
+    mask = df_db["ID"] == st.session_state.edit_id
+    if mask.any():
+        # Actualizamos el valor localmente de forma inmediata
+        df_db.loc[mask, "Cant. Actual"] = float(cantidad) 
         
         # Orden alfabético para mostrar en las tarjetas
         if not df_db.empty and "Tipo Insumo" in df_db.columns:
@@ -178,11 +186,17 @@ else:
                 c_fijo = df_db.at[idx, "Clase"] if "Clase" in df_db.columns else ""
                 eq_fijo = df_db.at[idx, "Equipo"] if "Equipo" in df_db.columns else ""
                 
-                if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
-                    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad} | Por: {verificado}")
-                    st.session_state.edit_id = None
-                    st.success("Cambios sincronizados exitosamente.")
-                    st.rerun()
+                # --- LÍNEAS 145-155 (Dentro del botón "Guardar Cambios") ---
+if enviar_datos_formulario(st.session_state.edit_id, t_fijo, m_fijo, e_fijo, c_fijo, eq_fijo, cant_val, verificado, observaciones):
+    registrar_movimiento("MODIFICACIÓN", st.session_state.edit_id, f"Nueva Cant.: {cantidad}")
+    st.session_state.edit_id = None
+    
+    # Notificación rápida
+    st.toast("Cambios guardados. Sincronizando...", icon="✅")
+    
+    # Limpieza de caché para forzar la lectura del nuevo valor en la próxima pasada
+    st.cache_data.clear()
+    st.rerun()
             else:
                 st.warning("Debes indicar quién está verificando este cambio en 'Verificado Por'.")
         except ValueError:
