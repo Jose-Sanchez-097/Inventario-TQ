@@ -21,21 +21,17 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Renombrar tabla sistema existente si existe
+    # Verificar si tabla sistema existe
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
     if c.fetchone():
-        # Renombrar tabla antigua
         c.execute("ALTER TABLE sistema RENAME TO sistema_old")
     
-    # Crear nueva tabla sistema con estructura correcta
+    # Crear nueva tabla sistema
     c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, fecha TEXT)''')
-    
-    # Crear otras tablas
     c.execute('''CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
     
-    # Crear admin
     c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
