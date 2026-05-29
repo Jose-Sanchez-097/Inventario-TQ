@@ -245,8 +245,7 @@ if st.button("🔥 Confirmar Eliminación", use_container_width=True):
                 st.rerun()
         else:
             st.error("El ID seleccionado no existe en la base de datos.")
-                else:
-                    st.error("Contraseña incorrecta. Acción denegada.")
+                
     else:
         st.info("El inventario está vacío o no hay coincidencias con la búsqueda.")
 
