@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import hashlib
+import traceback
 
 st.set_page_config(page_title="📦 Gestión de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
@@ -23,7 +24,7 @@ def init_db():
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         
-        # Eliminar tablas existentes y recrear
+        # Eliminar tablas existentes
         c.execute("DROP TABLE IF EXISTS inventario")
         c.execute("DROP TABLE IF EXISTS sistema")
         c.execute("DROP TABLE IF EXISTS historial")
@@ -41,7 +42,7 @@ def init_db():
             observaciones TEXT DEFAULT '', 
             fecha TEXT)''')
         
-        # Tabla sistema - nueva estructura exacta
+        # Tabla sistema
         c.execute('''CREATE TABLE sistema (
             id INTEGER PRIMARY KEY AUTOINCREMENT, 
             equipo TEXT NOT NULL, 
@@ -75,6 +76,7 @@ def init_db():
         conn.close()
     except Exception as e:
         print(f"Error init_db: {e}")
+        traceback.print_exc()
 
 def run_query(query, params=()):
     try:
@@ -92,10 +94,13 @@ def execute_query(query, params=()):
         c = conn.cursor()
         c.execute(query, params)
         conn.commit()
+        rows = c.rowcount
         conn.close()
+        print(f"Execute OK: {query} - params: {params} - rows: {rows}")
         return True
     except Exception as e:
         print(f"Error execute: {e}")
+        traceback.print_exc()
         return False
 
 def get_inventario():
@@ -106,6 +111,18 @@ def get_sistema():
 
 def get_historial():
     return run_query("SELECT * FROM historial ORDER BY fecha DESC")
+
+def get_columns(table):
+    """Obtiene las columnas de una tabla"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute(f"PRAGMA table_info({table})")
+        cols = c.fetchall()
+        conn.close()
+        return [col[1] for col in cols]
+    except:
+        return []
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
@@ -163,6 +180,9 @@ def pagina_login():
 def mostrar_dashboard():
     st.header("📊 Panel de Control")
     
+    # Mostrar columnas para debugging
+    st.caption(f"Columnas sistema: {get_columns('sistema')}")
+    
     df = get_inventario()
     df_sis = get_sistema()
     
@@ -217,17 +237,25 @@ def pagina_buscar():
 def pagina_sistema():
     st.header("⚙️ Agregar Sistema")
     
+    # Debug: mostrar columnas actuales
+    cols = get_columns('sistema')
+    st.caption(f"Columnas actuales en BD: {cols}")
+    
+    if 'equipo' not in cols:
+        st.error("❌ Tabla sistema no tiene columna 'equipo'")
+        return
+    
     with st.form("form_sistema"):
         c1, c2 = st.columns(2)
         with c1:
             equipo = st.text_input("Equipo *")
             articulo = st.text_input("Artículo")
-            modelo = st.text_input("Modelo")
         with c2:
-            medida = st.text_input("Medidas")
-            eficiencia = st.text_input("Eficiencia")
+            modelo = st.text_input("Modelo")
             cantidad = st.number_input("Cantidad", min_value=0, step=1, value=0)
         
+        medida = st.text_input("Medidas")
+        eficiencia = st.text_input("Eficiencia")
         ubicacion = st.text_input("Ubicación")
         observaciones = st.text_area("Observaciones")
         
@@ -236,27 +264,30 @@ def pagina_sistema():
         if submit and equipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
             
-            # Verificar estructura de la tabla
-            print(f"Guardando sistema: equipo={equipo}")
+            print(f"Intentando guardar: equipo={equipo}")
             
-            success = execute_query(
-                "INSERT INTO sistema (equipo, articulo, modelo, medidas, eficiencia, cantidad, ubicacion, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (equipo.strip(), 
-                 articulo.strip() if articulo else "", 
-                 modelo.strip() if modelo else "",
-                 medida.strip() if medida else "",
-                 eficiencia.strip() if eficiencia else "",
-                 cantidad,
-                 ubicacion.strip() if ubicacion else "",
-                 observaciones.strip() if observaciones else "",
-                 fecha)
-            )
+            # Verificar conteo de parámetros
+            query = "INSERT INTO sistema (equipo, articulo, modelo, medidas, eficiencia, cantidad, ubicacion, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            params = (equipo.strip(), 
+                     articulo.strip() if articulo else "", 
+                     modelo.strip() if modelo else "",
+                     medida.strip() if medida else "",
+                     eficiencia.strip() if eficiencia else "",
+                     int(cantidad),
+                     ubicacion.strip() if ubicacion else "",
+                     observaciones.strip() if observaciones else "",
+                     fecha)
+            
+            print(f"Query: {query}")
+            print(f"Params: {params}")
+            
+            success = execute_query(query, params)
             
             if success:
                 st.success("✅ Sistema guardado!")
                 st.rerun()
             else:
-                st.error("❌ Error al guardar")
+                st.error("❌ Error al guardar. Revisa los logs.")
         elif submit:
             st.warning("El campo Equipo es requerido")
 
