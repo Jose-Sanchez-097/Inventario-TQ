@@ -183,21 +183,19 @@ elif menu == "🗑️ Eliminar Insumo":
             else:
                 st.error("❌ Contraseña incorrecta.")
 
-elif menu == "🔍 Buscar Insumo":
+elif menu == "🔍 Buscar Inventario":
     st.header("🔍 Buscar Insumo en Inventario")
     df = get_inventario()
     if df.empty:
         st.info("No hay insumos registrados.")
     else:
-        # Selector de campo para busqueda especifica
         col1, col2 = st.columns([1, 2])
         with col1:
             st.markdown("### 📌 Filtrar por:")
             campo_busqueda = st.selectbox(
-                "Seleccione campo de busqueda:",
+                "Seleccione campo de búsqueda:",
                 ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"]
             )
-            # Mostrar traductor de nombres de campos
             nombres_campos = {
                 "tipo_insumo": "Tipo de Insumo",
                 "modelo": "Modelo",
@@ -212,9 +210,7 @@ elif menu == "🔍 Buscar Insumo":
             st.markdown("### 🔎 Ingrese texto a buscar:")
             texto_busqueda = st.text_input(f"Buscar por {nombres_campos[campo_busqueda]}", placeholder=f"Ingrese valor para {nombres_campos[campo_busqueda]}...")
         
-        # Logica de filtrado
         if texto_busqueda:
-            # Filtrar el DataFrame segun el campo seleccionado
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
             
             if not resultado.empty:
@@ -223,7 +219,6 @@ elif menu == "🔍 Buscar Insumo":
             else:
                 st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}' en el campo '{nombres_campos[campo_busqueda]}'")
         else:
-            # Mostrar inventario completo si no hay busqueda
             st.info("👆 Ingrese un valor en el campo de texto para buscar")
             st.dataframe(df.set_index('id'), use_container_width=True)
 
@@ -303,4 +298,7 @@ elif menu == "⚙️ Sistema":
             passwd = st.text_input("Contraseña (TQ2026)", type="password")
             if st.button("🗑️ Eliminar Sistema"):
                 if passwd == "TQ2026":
-                    sis_id = int(seleccion_s
+                    sis_id = int(seleccion_sis.split(" - ")[0])
+                    sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
+                    execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
+                    add
