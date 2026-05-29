@@ -104,7 +104,8 @@ elif menu == "➕ Agregar Insumo":
             c.execute(sql)
             conn.commit()
             conn.close()
-            add_to_historial("ALTA", f"Insumo: {tipo}", realizado_por if realizado_por else "Usuario")
+            # Historial detallado
+            add_to_historial("AGREGAR INSUMO", f"Insumo: {tipo} | Cantidad: {cantidad_int} | Modelo: {modelo if modelo else 'N/A'}", realizado_por if realizado_por else "Usuario")
             mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
             st.rerun()
         elif submit:
@@ -134,13 +135,15 @@ elif menu == "✏️ Modificar Insumo":
                 submit = st.form_submit_button("✏️ Actualizar")
                 if submit:
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={int(cantidad)}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
+                    cantidad_actual = int(cantidad)
+                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={cantidad_actual}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
                     conn = sqlite3.connect(DB_FILE)
                     c = conn.cursor()
                     c.execute(sql)
                     conn.commit()
                     conn.close()
-                    add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Usuario")
+                    # Historial detallado
+                    add_to_historial("MODIFICAR INSUMO", f"ID: {item_id} | Nuevo: {tipo} | Cantidad: {cantidad_actual} | Modelo: {modelo if modelo else 'N/A'}", "Usuario")
                     mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
                     st.rerun()
 
@@ -156,12 +159,15 @@ elif menu == "🗑️ Eliminar Insumo":
         if st.button("🗑️ Eliminar Definitivamente"):
             if passwd == "TQ2026":
                 item_id = int(seleccion.split(" - ")[0])
+                nombre_insumo = df[df['id'] == item_id]['tipo_insumo'].values[0]
+                cantidad_insumo = df[df['id'] == item_id]['cantidad'].values[0]
                 conn = sqlite3.connect(DB_FILE)
                 c = conn.cursor()
                 c.execute(f"DELETE FROM inventario WHERE id={item_id}")
                 conn.commit()
                 conn.close()
-                add_to_historial("ELIMINACIÓN", f"ID: {item_id}", "Admin")
+                # Historial detallado
+                add_to_historial("ELIMINAR INSUMO", f"ID: {item_id} | Insumo: {nombre_insumo} | Cantidad: {cantidad_insumo}", "Admin")
                 mostrar_mensaje_exito("✅ Insumo eliminado exitosamente!")
                 st.rerun()
             else:
@@ -179,6 +185,8 @@ elif menu == "🔍 Buscar Inventario":
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
             if not resultado.empty:
                 st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
+                # Historial de búsqueda
+                add_to_historial("BUSCAR INSUMO", f"Busqueda: {texto_busqueda} | Campo: {campo_busqueda} | Resultados: {len(resultado)}", "Usuario")
                 st.dataframe(resultado.set_index('id'), use_container_width=True)
             else:
                 st.warning(f"⚠️ No se encontraron resultados")
@@ -206,7 +214,8 @@ elif menu == "➕ Agregar Sistema":
             c.execute(sql)
             conn.commit()
             conn.close()
-            add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
+            # Historial detallado
+            add_to_historial("AGREGAR SISTEMA", f"Sistema: {nombre} | Cantidad: {cantidad_int} | Tipo Filtro: {tipo_filtro if tipo_filtro else 'N/A'}", "Usuario")
             mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
             st.rerun()
         elif submit:
@@ -224,6 +233,8 @@ elif menu == "🔍 Buscar Sistema":
             resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
             if not resultado_sis.empty:
                 st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
+                # Historial de búsqueda
+                add_to_historial("BUSCAR SISTEMA", f"Busqueda: {texto_busqueda_sis} | Campo: {campo_busqueda_sis} | Resultados: {len(resultado_sis)}", "Usuario")
                 st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
             else:
                 st.warning(f"⚠️ No se encontraron resultados")
