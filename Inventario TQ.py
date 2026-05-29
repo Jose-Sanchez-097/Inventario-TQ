@@ -1,11 +1,12 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
 import os
 import hashlib
-from pathlib import Path
+from io import BytesIO
+import shutil
 
 # ============================================
 # CONFIGURACIÓN DE LA APP
@@ -22,31 +23,19 @@ st.set_page_config(
 # ============================================
 st.markdown("""
 <style>
-    /* Tema oscuro/claro según preferencia */
-    <style>
-    /* Estilos principales */
     .main {
         background-color: #0e1117;
     }
-    .stApp {
-        background: linear-gradient(to bottom right, #0e1117, #1a1a2e);
+    h1, h2, h3 {
+        color: #00d4ff !important;
+        font-weight: bold;
     }
-    
-    /* Tarjetas de métricas */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
         border-radius: 15px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
-    
-    /* Encabezados */
-    h1, h2, h3 {
-        color: #00d4ff !important;
-        font-weight: bold;
-    }
-    
-    /* Botones primary */
     .stButton > button {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border: none;
@@ -54,27 +43,8 @@ st.markdown("""
         color: white;
         font-weight: bold;
     }
-    
-    /* Sidebar */
     [data-testid="stSidebar"] {
         background: linear-gradient(to bottom, #1a1a2e, #0e1117);
-    }
-    
-    /* Alertas */
-    .stAlert {
-        border-radius: 10px;
-    }
-    
-    /* Tablas */
-    .dataframe {
-        border-radius: 10px;
-    }
-    
-    /* Campos de formulario */
-    .stTextInput > div > div > input,
-    .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > div {
-        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -85,12 +55,12 @@ st.markdown("""
 DB_FILE = 'inventario.db'
 
 def init_db():
-    """Inicializa la base de datos con todas las tablas necesarias"""
+    """Inicializa la base de datos"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Tabla de inventario principal
-    c.execute("""CREATE TABLE IF NOT EXISTS inventario (
+    # Tabla de inventario
+    c.execute('''CREATE TABLE IF NOT EXISTS inventario (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tipo_insumo TEXT NOT NULL,
         medidas TEXT,
@@ -104,10 +74,10 @@ def init_db():
         realizado_por TEXT,
         observaciones TEXT,
         fecha_actualizacion TEXT,
-        fecha_creacion TEXT)""")
+        fecha_creacion TEXT)''')
     
     # Tabla de sistemas
-    c.execute("""CREATE TABLE IF NOT EXISTS sistema (
+    c.execute('''CREATE TABLE IF NOT EXISTS sistema (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         tipo_filtro TEXT,
@@ -118,26 +88,26 @@ def init_db():
         cantidad_minima INTEGER DEFAULT 5,
         costo_unitario REAL DEFAULT 0,
         fecha_actualizacion TEXT,
-        fecha_creacion TEXT)""")
+        fecha_creacion TEXT)''')
     
     # Tabla de historial
-    c.execute("""CREATE TABLE IF NOT EXISTS historial (
+    c.execute('''CREATE TABLE IF NOT EXISTS historial (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         fecha TEXT,
         accion TEXT,
         descripcion TEXT,
-        usuario TEXT)""")
+        usuario TEXT)''')
     
     # Tabla de usuarios
-    c.execute("""CREATE TABLE IF NOT EXISTS usuarios (
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         rol TEXT DEFAULT 'usuario',
-        fecha_creacion TEXT)""")
+        fecha_creacion TEXT)''')
     
     # Tabla de proveedores
-    c.execute("""CREATE TABLE IF NOT EXISTS proveedores (
+    c.execute('''CREATE TABLE IF NOT EXISTS proveedores (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         contacto TEXT,
@@ -145,10 +115,10 @@ def init_db():
         email TEXT,
         direccion TEXT,
         observaciones TEXT,
-        fecha_actualizacion TEXT)""")
+        fecha_actualizacion TEXT)''')
     
-    # Tabla de órdenes de pedido
-    c.execute("""CREATE TABLE IF NOT EXISTS ordenes_pedido (
+    # Tabla de órdenes
+    c.execute('''CREATE TABLE IF NOT EXISTS ordenes_pedido (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         orden_numero TEXT UNIQUE NOT NULL,
         insumo_id INTEGER,
@@ -158,15 +128,9 @@ def init_db():
         fecha_solicitud TEXT,
         fecha_entrega TEXT,
         observaciones TEXT,
-        usuario_solicita TEXT)""")
+        usuario_solicita TEXT)''')
     
-    # Tabla de configuración
-    c.execute("""CREATE TABLE IF NOT EXISTS configuracion (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        clave TEXT UNIQUE,
-        valor TEXT)""")
-    
-    # Crear usuario admin por defecto si no existe
+    # Crear admin si no existe
     c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
@@ -178,75 +142,44 @@ def init_db():
     conn.close()
 
 # ============================================
-# FUNCIONES DE BASE DE DATOS (SEGURAS)
+# FUNCIONES DE BASE DE DATOS
 # ============================================
 def run_query(query, params=()):
-    """Ejecuta consultas SELECT de forma segura"""
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql_query(query, conn, params=params if params else ())
     conn.close()
     return df
 
 def execute_query(query, params=()):
-    """Ejecuta consultas INSERT/UPDATE/DELETE de forma segura"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(query, params)
     conn.commit()
     conn.close()
 
-def execute_many(query, list_params):
-    """Ejecuta múltiples consultas de una vez"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.executemany(query, list_params)
-    conn.commit()
-    conn.close()
-
-# ============================================
-# FUNCIONES AUXILIARES
-# ============================================
 def hash_password(password):
-    """Hashea una contraseña"""
     return hashlib.sha256(password.encode()).hexdigest()
 
 def verificar_usuario(username, password):
-    """Verifica credenciales del usuario"""
     password_hash = hash_password(password)
     df = run_query("SELECT id, username, rol FROM usuarios WHERE username = ? AND password = ?", 
                   (username, password_hash))
     return df.iloc[0] if not df.empty else None
 
-def generar_numero_orden():
-    """Genera un número único para órdenes"""
-    return f"ORD-{datetime.now().strftime('%Y%m%d')}-{int(time.time())}"
-
-def exportar_excel(df, filename):
-    """Exporta DataFrame a Excel"""
-    return df.to_excel(index=False, engine='openpyxl')
-
 def crear_backup():
-    """Crea una copia de seguridad de la base de datos"""
     if os.path.exists(DB_FILE):
         fecha = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"backup_inventario_{fecha}.db"
-        import shutil
-        shutil.copy2(DB_FILE, backup_name)
+        shutil.copy2(DB_FILE, f"backup_inventario_{fecha}.db")
         return True
     return False
 
 def obtener_metricas():
-    """Obtiene métricas del sistema"""
     df_inv = run_query("SELECT * FROM inventario")
     df_sis = run_query("SELECT * FROM sistema")
     df_prov = run_query("SELECT * FROM proveedores")
     df_ord = run_query("SELECT * FROM ordenes_pedido WHERE estado = 'pendiente'")
     
-    # Stock bajo
     stock_bajo_inv = df_inv[df_inv['cantidad'] < df_inv['cantidad_minima']]
-    stock_bajo_sis = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
-    
-    # Valor total inventario
     valor_inv = (df_inv['cantidad'] * df_inv['costo_unitario']).sum()
     valor_sis = (df_sis['cantidad'] * df_sis['costo_unitario']).sum()
     
@@ -256,33 +189,28 @@ def obtener_metricas():
         'total_proveedores': len(df_prov),
         'pendientes': len(df_ord),
         'stock_bajo_inv': len(stock_bajo_inv),
-        'stock_bajo_sis': len(stock_bajo_sis),
         'valor_total': valor_inv + valor_sis
     }
 
 def add_to_historial(accion, descripcion, usuario):
-    """Agrega entrada al historial"""
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)",
                   (fecha, accion, descripcion, usuario))
 
 def mostrar_mensaje(mensaje, tipo='success'):
-    """Muestra mensaje temporal"""
     if tipo == 'success':
-        placeholder = st.empty()
-        placeholder.success(mensaje)
-        time.sleep(3)
-        placeholder.empty()
+        st.success(mensaje)
     elif tipo == 'error':
-        placeholder = st.empty()
-        placeholder.error(mensaje)
-        time.sleep(3)
-        placeholder.empty()
+        st.error(mensaje)
     elif tipo == 'warning':
-        placeholder = st.empty()
-        placeholder.warning(mensaje)
-        time.sleep(3)
-        placeholder.empty()
+        st.warning(mensaje)
+    time.sleep(3)
+
+def generar_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Inventario')
+    return output.getvalue()
 
 # ============================================
 # GESTIÓN DE SESIÓN
@@ -300,16 +228,35 @@ def cerrar_sesion():
     st.session_state.rol_usuario = None
     st.rerun()
 
+def importar_excel():
+    uploaded_file = st.file_uploader("Importar desde Excel", type=['xlsx', 'xls'])
+    if uploaded_file is not None:
+        try:
+            df_nuevo = pd.read_excel(uploaded_file)
+            for _, row in df_nuevo.iterrows():
+                execute_query('''INSERT INTO inventario 
+                    (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, cantidad_minima, 
+                     proveedor, costo_unitario, realizado_por, observaciones, fecha_actualizacion, fecha_creacion)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (row.get('tipo_insumo', ''), row.get('medidas', ''), row.get('eficiencia', ''),
+                     row.get('modelo', ''), row.get('equipo', ''), row.get('cantidad', 0),
+                     row.get('cantidad_minima', 5), row.get('proveedor', ''), row.get('costo_unitario', 0),
+                     row.get('realizado_por', ''), row.get('observaciones', ''),
+                     datetime.now().strftime("%Y-%m-%d"), datetime.now().strftime("%Y-%m-%d")))
+            mostrar_mensaje("✅ Datos importados correctamente", 'success')
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error al importar: {e}")
+
 # ============================================
 # PÁGINA DE LOGIN
 # ============================================
 def pagina_login():
-    """Página de inicio de sesión"""
     st.markdown("""
     <div style='text-align: center; padding: 50px;'>
         <h1 style='font-size: 60px;'>📦</h1>
         <h2 style='color: #00d4ff;'>Gestión de Inventarios TQ</h2>
-        <p style='color: #888;'>Ingrese sus credenciales para continuar</p>
+        <p style='color: #888;'>Ingrese sus credenciales</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -331,19 +278,16 @@ def pagina_login():
                 else:
                     st.error("❌ Credenciales incorrectas")
         
-        st.markdown("---")
         st.info("💡 Credenciales por defecto: admin / TQ2026")
 
 # ============================================
 # DASHBOARD PRINCIPAL
 # ============================================
 def mostrar_dashboard():
-    """Muestra el dashboard principal"""
     metricas = obtener_metricas()
     
     st.header("📊 Panel de Control en Tiempo Real")
     
-    # Métricas principales
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("📦 Total Insumos", metricas['total_insumos'])
     col2.metric("⚙️ Total Sistemas", metricas['total_sistemas'])
@@ -352,81 +296,60 @@ def mostrar_dashboard():
     
     st.markdown("---")
     
-    # Alertas de stock bajo
     c1, c2 = st.columns(2)
     with c1:
-        st.subheader("⚠️ Alerta: Insumos Stock Bajo")
+        st.subheader("⚠️ Insumos con Stock Bajo")
         df = run_query("SELECT * FROM inventario")
         if not df.empty:
             stock_bajo = df[df['cantidad'] < df['cantidad_minima']]
             if not stock_bajo.empty:
                 st.error(f"¡Tienes {len(stock_bajo)} insumos con stock crítico!")
-                st.dataframe(stock_bajo[['id', 'tipo_insumo', 'modelo', 'cantidad', 'cantidad_minima', 'proveedor']].set_index('id'), 
-                           use_container_width=True)
+                st.dataframe(stock_bajo[['id', 'tipo_insumo', 'modelo', 'cantidad', 'cantidad_minima', 'proveedor']].set_index('id'))
             else:
                 st.success("✅ Inventario en niveles óptimos")
     
     with c2:
-        st.subheader("⚠️ Alerta: Sistemas Stock Bajo")
+        st.subheader("⚠️ Sistemas con Stock Bajo")
         df_sis = run_query("SELECT * FROM sistema")
         if not df_sis.empty:
             stock_bajo_sis = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
             if not stock_bajo_sis.empty:
                 st.warning(f"¡Tienes {len(stock_bajo_sis)} sistemas con stock crítico!")
-                st.dataframe(stock_bajo_sis[['id', 'nombre', 'modelo', 'cantidad', 'cantidad_minima']].set_index('id'),
-                           use_container_width=True)
+                st.dataframe(stock_bajo_sis[['id', 'nombre', 'modelo', 'cantidad', 'cantidad_minima']].set_index('id'))
             else:
                 st.success("✅ Sistemas en niveles óptimos")
     
     st.markdown("---")
     
-    # Órdenes pendientes
-    st.subheader("📋 Órdenes de Pedido Pendientes")
-    df_ord = run_query("SELECT * FROM ordenes_pedido WHERE estado = 'pendiente'")
-    if not df_ord.empty:
-        st.info(f"Tienes {len(df_ord)} órdenes pendientes de atención")
-        st.dataframe(df_ord.set_index('id'), use_container_width=True)
-    else:
-        st.success("✅ No hay órdenes pendientes")
-    
-    st.markdown("---")
-    
-    # Vista general
     st.subheader("📋 Vista General del Inventario")
     df = run_query("SELECT * FROM inventario")
     if not df.empty:
-        # Opción de búsqueda rápida
-        Buscar = st.text_input("🔍 Búsqueda rápida:", placeholder="Buscar en inventario...")
-        if Buscar:
-            df_filtrado = df[df['tipo_insumo'].str.contains(Buscar, case=False, na=False) | 
-                           df['modelo'].str.contains(Buscar, case=False, na=False)]
-            st.dataframe(df_filtrado.set_index('id'), use_container_width=True)
+        buscar = st.text_input("🔍 Búsqueda rápida:", placeholder="Buscar...")
+        if buscar:
+            df_filtrado = df[df['tipo_insumo'].str.contains(buscar, case=False, na=False) | 
+                           df['modelo'].str.contains(buscar, case=False, na=False)]
+            st.dataframe(df_filtrado.set_index('id'))
         else:
-            st.dataframe(df.set_index('id'), use_container_width=True)
+            st.dataframe(df.set_index('id'))
     
-    st.markdown("---")
-    
-    # Gráficos estadísticos
-    st.subheader("📈 Estadísticas del Inventario")
+    # Gráficos
+    st.subheader("📈 Estadísticas")
     col_g1, col_g2 = st.columns(2)
     
     with col_g1:
-        # Top 10 insumos por cantidad
         df = run_query("SELECT tipo_insumo, cantidad FROM inventario ORDER BY cantidad DESC LIMIT 10")
         if not df.empty:
-            st.bar_chart(data=df.set_index('tipo_insumo'), use_container_width=True)
+            st.bar_chart(data=df.set_index('tipo_insumo'))
     
     with col_g2:
-        # Distribución por equipo
         df = run_query("SELECT equipo, COUNT(*) as total FROM inventario GROUP BY equipo")
         if not df.empty:
-            st.bar_chart(data=df.set_index('equipo'), use_container_width=True)
+            st.bar_chart(data=df.set_index('equipo'))
 
 # ============================================
 # AGREGAR INSUMO
 # ============================================
 def pagina_agregar_insumo():
-    """Página para agregar nuevo insumo"""
     st.header("➕ Agregar Nuevo Insumo")
     
     with st.form("form_agregar"):
@@ -454,8 +377,51 @@ def pagina_agregar_insumo():
         submit = st.form_submit_button("💾 Guardar Insumo", use_container_width=True)
         
         if submit and tipo:
-            try:
-                fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                execute_query("""INSERT INTO inventario 
-                    (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, cantidad_minima, 
-                     proveedor, costo
+            fecha_actual = datetime.now().strftime("%Y-%m-%d")
+            execute_query('''INSERT INTO inventario 
+                (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, cantidad_minima, 
+                 proveedor, costo_unitario, realizado_por, observaciones, fecha_actualizacion, fecha_creacion)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (tipo, medidas, eficiencia, modelo, equipo, cantidad, cantidad_min,
+                 proveedor, costo, realizado_por, observaciones, fecha_actual, fecha_actual))
+            
+            add_to_historial("AGREGAR INSUMO", f"Insumo: {tipo} | Cantidad: {cantidad}", st.session_state.usuario_actual)
+            mostrar_mensaje("✅ Insumo agregado exitosamente!")
+            st.rerun()
+        elif submit:
+            st.warning("Complete los campos obligatorios (*)")
+
+# ============================================
+# MODIFICAR INSUMO
+# ============================================
+def pagina_modificar_insumo():
+    st.header("✏️ Modificar Insumo Existente")
+    df = get_inventario()
+    
+    if df.empty:
+        st.info("No hay insumos para modificar.")
+    else:
+        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
+        seleccion = st.selectbox("Seleccione Insumo", opciones)
+        
+        if seleccion:
+            item_id = int(seleccion.split(" - ")[0])
+            item = df[df['id'] == item_id].iloc[0]
+            
+            with st.form("form_modificar"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    tipo = st.text_input("Tipo de Insumo", value=item['tipo_insumo'])
+                    modelo = st.text_input("Modelo", value=item['modelo'])
+                    medidas = st.text_input("Medidas", value=item['medidas'])
+                    eficiencia = st.text_input("Eficiencia", value=item['eficiencia'])
+                
+                with col2:
+                    equipo = st.text_input("Equipo", value=item['equipo'])
+                    cantidad = st.number_input("Cantidad", min_value=0, value=int(item['cantidad']))
+                    cantidad_min = st.number_input("Stock Mínimo", min_value=0, value=int(item['cantidad_minima']))
+                
+                col3, col4 = st.columns(2)
+                with col3:
+                    proveedor = st.text_input("Proveedor", value=item['proveedor'])
+                    costo = st.number_input
