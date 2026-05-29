@@ -21,30 +21,24 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    c.execute('''CREATE TABLE IF NOT EXISTS inventario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0,
-        cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0,
-        observaciones TEXT, fecha TEXT)''')
+    # Eliminar tablas existentes para recrear con estructura correcta
+    c.execute("DROP TABLE IF EXISTS inventario")
+    c.execute("DROP TABLE IF EXISTS sistema")
+    c.execute("DROP TABLE IF EXISTS historial")
+    c.execute("DROP TABLE IF EXISTS usuarios")
     
-    c.execute('''CREATE TABLE IF NOT EXISTS sistema (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, 
-        eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, 
-        observaciones TEXT, cantidad_minima INTEGER DEFAULT 5, fecha TEXT)''')
+    # Crear tablas con estructura correcta
+    c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
     
-    c.execute('''CREATE TABLE IF NOT EXISTS historial (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, cantidad_minima INTEGER DEFAULT 5, fecha TEXT)''')
     
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
+    c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
     
-    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
-    if not c.fetchone():
-        password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
-        c.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)",
-                 ('admin', password_admin, 'administrador'))
+    c.execute('''CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
+    
+    # Crear usuario admin
+    password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
+    c.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)", ('admin', password_admin, 'administrador'))
     
     conn.commit()
     conn.close()
@@ -83,20 +77,15 @@ def verificar_usuario(username, password):
 def add_to_historial(accion, descripcion, usuario):
     try:
         fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", 
-                   (fecha, accion, descripcion, usuario))
+        execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
     except:
         pass
 
 def mostrar_mensaje(mensaje, tipo='success'):
-    if tipo == 'success':
-        msg = st.success(mensaje)
-    elif tipo == 'error':
-        msg = st.error(mensaje)
-    elif tipo == 'warning':
-        msg = st.warning(mensaje)
-    else:
-        msg = st.info(mensaje)
+    if tipo == 'success': msg = st.success(mensaje)
+    elif tipo == 'error': msg = st.error(mensaje)
+    elif tipo == 'warning': msg = st.warning(mensaje)
+    else: msg = st.info(mensaje)
     time.sleep(5)
     msg.empty()
 
@@ -142,20 +131,14 @@ def mostrar_dashboard():
         st.subheader("⚠️ Stock Bajo - Insumos")
         if not df.empty:
             stock = df[df['cantidad'] < df['cantidad_minima']]
-            if not stock.empty:
-                st.error(f"¡{len(stock)} críticos!")
-                st.dataframe(stock[['id','tipo_insumo','cantidad','cantidad_minima']])
-            else:
-                st.success("✅ OK")
+            if not stock.empty: st.error(f"¡{len(stock)} críticos!")
+            else: st.success("✅ OK")
     with c2:
         st.subheader("⚠️ Stock Bajo - Sistemas")
         if not df_sis.empty:
             stock = df_sis[df_sis['cantidad'] < df_sis.get('cantidad_minima', 5)]
-            if not stock.empty:
-                st.warning(f"¡{len(stock)} críticos!")
-                st.dataframe(stock[['id','equipo','cantidad']])
-            else:
-                st.success("✅ OK")
+            if not stock.empty: st.warning(f"¡{len(stock)} kritis!")
+            else: st.success("✅ OK")
     st.markdown("---")
     st.subheader("📋 Inventario")
     st.dataframe(df)
@@ -163,7 +146,7 @@ def mostrar_dashboard():
     st.dataframe(df_sis)
 
 def pagina_agregar_insumo():
-    st.header("➕ Agregar Insumo")
+    st.header(" ➕ Agregar Insumo")
     with st.form("form_agregar"):
         c1, c2 = st.columns(2)
         with c1:
@@ -178,10 +161,8 @@ def pagina_agregar_insumo():
         submit = st.form_submit_button("💾 Guardar")
         if submit and tipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
-            execute_query(
-                "INSERT INTO inventario (tipo_insumo, modelo, cantidad, cantidad_minima, proveedor, costo, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (tipo, modelo if modelo else "", cantidad, cantidad_min, proveedor if proveedor else "", costo, observaciones if observaciones else "", fecha)
-            )
+            execute_query("INSERT INTO inventario (tipo_insumo, modelo, cantidad, cantidad_minima, proveedor, costo, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (tipo, modelo if modelo else "", cantidad, cantidad_min, proveedor if proveedor else "", costo, observaciones if observaciones else "", fecha))
             add_to_historial("AGREGAR", tipo, st.session_state.usuario_actual)
             mostrar_mensaje("✅ Guardado!", 'success')
             st.rerun()
@@ -189,8 +170,7 @@ def pagina_agregar_insumo():
 def pagina_modificar_insumo():
     st.header("✏️ Modificar Insumo")
     df = get_inventario()
-    if df.empty:
-        st.info("No hay insumos")
+    if df.empty: st.info("No hay insumos")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
         seleccion = st.selectbox("Seleccionar", opciones)
@@ -203,16 +183,14 @@ def pagina_modificar_insumo():
                 submit = st.form_submit_button("✏️ Actualizar")
                 if submit:
                     fecha = datetime.now().strftime("%Y-%m-%d")
-                    execute_query("UPDATE inventario SET tipo_insumo=?, cantidad=?, fecha=? WHERE id=?",
-                                (tipo, cantidad, fecha, item_id))
+                    execute_query("UPDATE inventario SET tipo_insumo=?, cantidad=?, fecha=? WHERE id=?", (tipo, cantidad, fecha, item_id))
                     mostrar_mensaje("✅ Actualizado!", 'success')
                     st.rerun()
 
 def pagina_eliminar_insumo():
     st.header("🗑️ Eliminar Insumo")
     df = get_inventario()
-    if df.empty:
-        st.info("Vacío")
+    if df.empty: st.info("Vacío")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
         seleccion = st.selectbox("Seleccionar", opciones)
@@ -229,8 +207,7 @@ def pagina_eliminar_insumo():
 def pagina_buscar_insumo():
     st.header("🔍 Buscar Insumo")
     df = get_inventario()
-    if df.empty:
-        st.info("Sin datos")
+    if df.empty: st.info("Sin datos")
     else:
         campo = st.selectbox("Campo", list(df.columns))
         texto = st.text_input("Buscar")
@@ -255,11 +232,8 @@ def pagina_agregar_sistema():
         submit = st.form_submit_button("💾 Guardar")
         if submit and equipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
-            # CORREGIDO: Agregué cantidad_minima a la consulta
-            execute_query(
-                "INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, cantidad_minima, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", 5, fecha)
-            )
+            execute_query("INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, cantidad_minima, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", 5, fecha))
             add_to_historial("AGREGAR SISTEMA", equipo, st.session_state.usuario_actual)
             mostrar_mensaje("✅ Sistema guardado!", 'success')
             st.rerun()
@@ -269,8 +243,7 @@ def pagina_agregar_sistema():
 def pagina_modificar_sistema():
     st.header("✏️ Modificar Sistema")
     df = get_sistema()
-    if df.empty:
-        st.info("No hay sistemas")
+    if df.empty: st.info("No hay sistemas")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['equipo']}", axis=1).tolist()
         seleccion = st.selectbox("Seleccionar", opciones)
@@ -293,15 +266,14 @@ def pagina_modificar_sistema():
                 if submit:
                     fecha = datetime.now().strftime("%Y-%m-%d")
                     execute_query("UPDATE sistema SET equipo=?, articulo=?, modelo=?, medida=?, eficiencia=?, cantidad=?, ubicacion=?, observaciones=?, fecha=? WHERE id=?",
-                                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha, item_id))
+                        (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha, item_id))
                     mostrar_mensaje("✅ Actualizado!", 'success')
                     st.rerun()
 
 def pagina_eliminar_sistema():
     st.header("🗑️ Eliminar Sistema")
     df = get_sistema()
-    if df.empty:
-        st.info("No hay sistemas")
+    if df.empty: st.info("No hay sistemas")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['equipo']}", axis=1).tolist()
         seleccion = st.selectbox("Seleccionar", opciones)
@@ -318,8 +290,7 @@ def pagina_eliminar_sistema():
 def pagina_buscar_sistema():
     st.header("🔍 Buscar Sistema")
     df = get_sistema()
-    if df.empty:
-        st.info("Sin sistemas")
+    if df.empty: st.info("Sin sistemas")
     else:
         campo = st.selectbox("Campo", list(df.columns))
         texto = st.text_input("Buscar")
@@ -343,27 +314,16 @@ def main():
         st.sidebar.markdown("---")
         if st.sidebar.button("🚪 Cerrar Sesión"):
             cerrar_sesion()
-        
-        if menu == "🏠 Inicio":
-            mostrar_dashboard()
-        elif menu == "➕ Agregar Insumo":
-            pagina_agregar_insumo()
-        elif menu == "✏️ Modificar Insumo":
-            pagina_modificar_insumo()
-        elif menu == "🗑️ Eliminar Insumo":
-            pagina_eliminar_insumo()
-        elif menu == "🔍 Buscar Insumo":
-            pagina_buscar_insumo()
-        elif menu == "⚙️ Agregar Sistema":
-            pagina_agregar_sistema()
-        elif menu == "✏️ Modificar Sistema":
-            pagina_modificar_sistema()
-        elif menu == "🗑️ Eliminar Sistema":
-            pagina_eliminar_sistema()
-        elif menu == "🔍 Buscar Sistema":
-            pagina_buscar_sistema()
-        elif menu == "📜 Historial":
-            pagina_historial()
+        if menu == "🏠 Inicio": mostrar_dashboard()
+        elif menu == "➕ Agregar Insumo": pagina_agregar_insumo()
+        elif menu == "✏️ Modificar Insumo": pagina_modificar_insumo()
+        elif menu == "🗑️ Eliminar Insumo": pagina_eliminar_insumo()
+        elif menu == "🔍 Buscar Insumo": pagina_buscar_insumo()
+        elif menu == "⚙️ Agregar Sistema": pagina_agregar_sistema()
+        elif menu == "✏️ Modificar Sistema": pagina_modificar_sistema()
+        elif menu == "🗑️ Eliminar Sistema": pagina_eliminar_sistema()
+        elif menu == "🔍 Buscar Sistema": pagina_buscar_sistema()
+        elif menu == "📜 Historial": pagina_historial()
 
 if __name__ == "__main__":
     main()
