@@ -19,7 +19,8 @@ def init_db():
         c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0, fecha_actualizacion TEXT)''')
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='historial'")
     if not c.fetchone():
-        c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+        # Cambiar nombre del campo "accion" a "cantidad_filtros"
+        c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, cantidad_filtros TEXT, descripcion TEXT, usuario TEXT)''')
     conn.commit()
     conn.close()
 
@@ -42,9 +43,9 @@ def get_inventario():
 def get_sistema():
     return run_query("SELECT * FROM sistema")
 
-def add_to_historial(accion, descripcion, usuario):
+def add_to_historial(cantidad_filtros, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
+    execute_query("INSERT INTO historial (fecha, cantidad_filtros, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, cantidad_filtros, descripcion, usuario))
 
 def mostrar_mensaje_exito(mensaje):
     success_placeholder = st.empty()
@@ -104,8 +105,8 @@ elif menu == "➕ Agregar Insumo":
             c.execute(sql)
             conn.commit()
             conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR INSUMO", f"Insumo: {tipo} | Cantidad: {cantidad_int} | Modelo: {modelo if modelo else 'N/A'}", realizado_por if realizado_por else "Usuario")
+            # Historial: cantidad en cantidad_filtros, equipo en descripcion
+            add_to_historial(f"Cantidad: {cantidad_int}", f"Insumo: {tipo} | Equipo: {equipo if equipo else 'N/A'} | Modelo: {modelo if modelo else 'N/A'}", realizado_por if realizado_por else "Usuario")
             mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
             st.rerun()
         elif submit:
@@ -142,8 +143,8 @@ elif menu == "✏️ Modificar Insumo":
                     c.execute(sql)
                     conn.commit()
                     conn.close()
-                    # Historial detallado
-                    add_to_historial("MODIFICAR INSUMO", f"ID: {item_id} | Nuevo: {tipo} | Cantidad: {cantidad_actual} | Modelo: {modelo if modelo else 'N/A'}", "Usuario")
+                    # Historial: cantidad en cantidad_filtros, equipo en descripcion
+                    add_to_historial(f"Cantidad: {cantidad_actual}", f"ID: {item_id} | Insumo: {tipo} | Equipo: {equipo if equipo else 'N/A'} | Modelo: {modelo if modelo else 'N/A'}", "Usuario")
                     mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
                     st.rerun()
 
@@ -161,13 +162,14 @@ elif menu == "🗑️ Eliminar Insumo":
                 item_id = int(seleccion.split(" - ")[0])
                 nombre_insumo = df[df['id'] == item_id]['tipo_insumo'].values[0]
                 cantidad_insumo = df[df['id'] == item_id]['cantidad'].values[0]
+                equipo_insumo = df[df['id'] == item_id]['equipo'].values[0]
                 conn = sqlite3.connect(DB_FILE)
                 c = conn.cursor()
                 c.execute(f"DELETE FROM inventario WHERE id={item_id}")
                 conn.commit()
                 conn.close()
-                # Historial detallado
-                add_to_historial("ELIMINAR INSUMO", f"ID: {item_id} | Insumo: {nombre_insumo} | Cantidad: {cantidad_insumo}", "Admin")
+                # Historial: cantidad en cantidad_filtros, equipo en descripcion
+                add_to_historial(f"Cantidad: {cantidad_insumo}", f"ID: {item_id} | Insumo: {nombre_insumo} | Equipo: {equipo_insumo if equipo_insumo else 'N/A'}", "Admin")
                 mostrar_mensaje_exito("✅ Insumo eliminado exitosamente!")
                 st.rerun()
             else:
@@ -185,8 +187,8 @@ elif menu == "🔍 Buscar Inventario":
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
             if not resultado.empty:
                 st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR INSUMO", f"Busqueda: {texto_busqueda} | Campo: {campo_busqueda} | Resultados: {len(resultado)}", "Usuario")
+                # Historial
+                add_to_historial(f"Resultados: {len(resultado)}", f"Busqueda: {texto_busqueda} | Campo: {campo_busqueda}", "Usuario")
                 st.dataframe(resultado.set_index('id'), use_container_width=True)
             else:
                 st.warning(f"⚠️ No se encontraron resultados")
@@ -214,8 +216,8 @@ elif menu == "➕ Agregar Sistema":
             c.execute(sql)
             conn.commit()
             conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR SISTEMA", f"Sistema: {nombre} | Cantidad: {cantidad_int} | Tipo Filtro: {tipo_filtro if tipo_filtro else 'N/A'}", "Usuario")
+            # Historial
+            add_to_historial(f"Cantidad: {cantidad_int}", f"Sistema: {nombre} | Tipo Filtro: {tipo_filtro if tipo_filtro else 'N/A'}", "Usuario")
             mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
             st.rerun()
         elif submit:
@@ -233,8 +235,8 @@ elif menu == "🔍 Buscar Sistema":
             resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
             if not resultado_sis.empty:
                 st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR SISTEMA", f"Busqueda: {texto_busqueda_sis} | Campo: {campo_busqueda_sis} | Resultados: {len(resultado_sis)}", "Usuario")
+                # Historial
+                add_to_historial(f"Resultados: {len(resultado_sis)}", f"Busqueda: {texto_busqueda_sis} | Campo: {campo_busqueda_sis}", "Usuario")
                 st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
             else:
                 st.warning(f"⚠️ No se encontraron resultados")
@@ -247,4 +249,6 @@ elif menu == "📜 Historial":
     if df_hist.empty:
         st.info("Sin movimientos registrados.")
     else:
+        # Renombrar columnas para mostrar
+        df_hist = df_hist.rename(columns={'cantidad_filtros': 'Cantidad de Filtros'})
         st.dataframe(df_hist.set_index('id'), use_container_width=True)
