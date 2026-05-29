@@ -10,9 +10,40 @@ DB_FILE = 'inventario.db'
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER, fecha_actualizacion TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    # Eliminar tablas existentes si existen (para evitar problemas de estructura)
+    c.execute("DROP TABLE IF EXISTS inventario")
+    c.execute("DROP TABLE IF EXISTS sistema")
+    c.execute("DROP TABLE IF EXISTS historial")
+    # Crear tablas con estructura correcta
+    c.execute('''CREATE TABLE inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        tipo_insumo TEXT NOT NULL, 
+        medidas TEXT, 
+        eficiencia TEXT, 
+        modelo TEXT, 
+        equipo TEXT, 
+        cantidad INTEGER DEFAULT 0, 
+        realizado_por TEXT, 
+        observaciones TEXT, 
+        fecha_actualizacion TEXT
+    )''')
+    c.execute('''CREATE TABLE sistema (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        nombre TEXT NOT NULL, 
+        tipo_filtro TEXT, 
+        modelo TEXT, 
+        eficiencia TEXT, 
+        medidas TEXT, 
+        cantidad INTEGER DEFAULT 0, 
+        fecha_actualizacion TEXT
+    )''')
+    c.execute('''CREATE TABLE historial (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        fecha TEXT, 
+        accion TEXT, 
+        descripcion TEXT, 
+        usuario TEXT
+    )''')
     conn.commit()
     conn.close()
 
@@ -25,9 +56,15 @@ def run_query(query, params=()):
 def execute_query(query, params=()):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute(query, params)
-    conn.commit()
-    conn.close()
+    try:
+        c.execute(query, params)
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        st.error(f"Error en base de datos: {e}")
+        raise
+    finally:
+        conn.close()
 
 def get_inventario():
     return run_query("SELECT * FROM inventario")
@@ -39,6 +76,7 @@ def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
 
+# Inicializar base de datos
 init_db()
 
 st.title("📦 Plataforma de Gestion de Inventarios")
@@ -87,17 +125,9 @@ elif menu == "➕ Agregar Insumo":
             cantidad_int = int(cantidad) if cantidad else 0
             execute_query(
                 "INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                (tipo, 
-                 medidas if medidas else "", 
-                 eficiencia if eficiencia else "", 
-                 modelo if modelo else "", 
-                 equipo if equipo else "", 
-                 cantidad_int, 
-                 realizado_por if realizado_por else "", 
-                 observaciones if observaciones else "", 
-                 fecha_actual)
+                (tipo, str(medidas), str(eficiencia), str(modelo), str(equipo), cantidad_int, str(realizado_por), str(observaciones), fecha_actual)
             )
-            add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por if realizado_por else "Usuario")
+            add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", str(realizado_por))
             st.success("✅ Insumo agregado exitosamente!")
         elif submit:
             st.warning("Por favor complete los campos obligatorios (*).")
@@ -129,15 +159,7 @@ elif menu == "✏️ Modificar Insumo":
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
                     execute_query(
                         "UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
-                        (tipo, 
-                         medidas if medidas else "", 
-                         eficiencia if eficiencia else "", 
-                         modelo if modelo else "", 
-                         equipo if equipo else "", 
-                         int(cantidad), 
-                         observaciones if observaciones else "", 
-                         fecha_actual, 
-                         item_id)
+                        (tipo, str(medidas), str(eficiencia), str(modelo), str(equipo), int(cantidad), str(observaciones), fecha_actual, item_id)
                     )
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
                     st.success("✅ Insumo actualizado.")
@@ -205,13 +227,7 @@ elif menu == "⚙️ Sistema":
                 fecha_actual = datetime.now().strftime("%Y-%m-%d")
                 execute_query(
                     "INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                    (nombre, 
-                     tipo_filtro if tipo_filtro else "", 
-                     modelo if modelo else "", 
-                     eficiencia if eficiencia else "", 
-                     medidas if medidas else "", 
-                     int(cantidad) if cantidad else 0, 
-                     fecha_actual)
+                    (nombre, str(tipo_filtro), str(modelo), str(eficiencia), str(medidas), int(cantidad) if cantidad else 0, fecha_actual)
                 )
                 add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
                 st.success("✅ Sistema agregado.")
@@ -243,14 +259,7 @@ elif menu == "⚙️ Sistema":
                         fecha_actual = datetime.now().strftime("%Y-%m-%d")
                         execute_query(
                             "UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
-                            (nombre, 
-                             tipo_filtro if tipo_filtro else "", 
-                             modelo if modelo else "", 
-                             eficiencia if eficiencia else "", 
-                             medidas if medidas else "", 
-                             int(cantidad), 
-                             fecha_actual, 
-                             sis_id)
+                            (nombre, str(tipo_filtro), str(modelo), str(eficiencia), str(medidas), int(cantidad), fecha_actual, sis_id)
                         )
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
                         st.success("✅ Sistema actualizado.")
@@ -270,38 +279,4 @@ elif menu == "⚙️ Sistema":
                     sis_id = int(seleccion_sis.split(" - ")[0])
                     sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
                     execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
-                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
-                    st.success("✅ Sistema eliminado.")
-                else:
-                    st.error("❌ Contraseña incorrecta.")
-
-elif menu == "🔍 Buscar Sistema":
-    st.header("🔍 Buscar Sistema")
-    df_sis = get_sistema()
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
-            nombres_campos_sis = {"nombre": "Nombre del Sistema", "tipo_filtro": "Tipo de Filtro", "modelo": "Modelo", "eficiencia": "Eficiencia", "medidas": "Medidas"}
-        with col2:
-            texto_busqueda_sis = st.text_input(f"Buscar por {nombres_campos_sis[campo_busqueda_sis]}", placeholder=f"Ingrese valor para {nombres_campos_sis[campo_busqueda_sis]}...")
-        if texto_busqueda_sis:
-            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
-            if not resultado_sis.empty:
-                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda_sis}'")
-        else:
-            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-elif menu == "📜 Historial":
-    st.header("📜 Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+                    add_to_historial("
