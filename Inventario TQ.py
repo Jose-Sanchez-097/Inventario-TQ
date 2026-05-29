@@ -2,22 +2,25 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import os
 
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
 DB_FILE = 'inventario.db'
 
-# Eliminar base de datos si existe
-if os.path.exists(DB_FILE):
-    os.remove(DB_FILE)
-
+# NO eliminar la base de datos - solo crear tablas si no existen
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
-    c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0, fecha_actualizacion TEXT)''')
-    c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    # Verificar si las tablas existen
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventario'")
+    if not c.fetchone():
+        c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
+    if not c.fetchone():
+        c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0, fecha_actualizacion TEXT)''')
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='historial'")
+    if not c.fetchone():
+        c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
     conn.commit()
     conn.close()
 
@@ -90,7 +93,8 @@ elif menu == "➕ Agregar Insumo":
         if submit and tipo:
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             cantidad_int = int(cantidad) if cantidad else 0
-            # Convertir a string manualmente y usar cadena vacía si es None
+            
+            # Convertir valores
             tipo_val = tipo if tipo else ""
             modelo_val = modelo if modelo else ""
             medidas_val = medidas if medidas else ""
@@ -99,7 +103,7 @@ elif menu == "➕ Agregar Insumo":
             realizado_por_val = realizado_por if realizado_por else ""
             observaciones_val = observaciones if observaciones else ""
             
-            # Usar f-string en lugar de parámetros
+            # SQL con f-string
             sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) 
             VALUES ('{tipo_val}', '{medidas_val}', '{eficiencia_val}', '{modelo_val}', '{equipo_val}', {cantidad_int}, '{realizado_por_val}', '{observaciones_val}', '{fecha_actual}')"""
             
@@ -110,7 +114,7 @@ elif menu == "➕ Agregar Insumo":
             conn.close()
             
             add_to_historial("ALTA", f"Insumo: {tipo_val}", realizado_por_val)
-            st.success("✅ Insumo agregado exitosamente!")
+            st.rerun()
         elif submit:
             st.warning("Por favor complete los campos obligatorios (*).")
 
@@ -155,7 +159,7 @@ elif menu == "✏️ Modificar Insumo":
                     conn.close()
                     
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Admin")
-                    st.success("✅ Insumo actualizado.")
+                    st.rerun()
                 elif submit:
                     st.error("❌ Contraseña incorrecta. Use TQ2026")
 
@@ -177,7 +181,7 @@ elif menu == "🗑️ Eliminar Insumo":
                 conn.commit()
                 conn.close()
                 add_to_historial("ELIMINACIÓN", f"ID: {item_id}", "Admin")
-                st.success("✅ Insumo eliminado.")
+                st.rerun()
             else:
                 st.error("❌ Contraseña incorrecta.")
 
@@ -217,7 +221,7 @@ elif menu == "⚙️ Sistema":
             if submit and nombre:
                 fecha_actual = datetime.now().strftime("%Y-%m-%d")
                 cantidad_int = int(cantidad) if cantidad else 0
-                nombre_val = nombre if nombre else ""
+                nombre_val = nombre
                 tipo_filtro_val = tipo_filtro if tipo_filtro else ""
                 modelo_val = modelo if modelo else ""
                 eficiencia_val = eficiencia if eficiencia else ""
@@ -233,7 +237,7 @@ elif menu == "⚙️ Sistema":
                 conn.close()
                 
                 add_to_historial("ALTA SISTEMA", f"Sistema: {nombre_val}", "Usuario")
-                st.success("✅ Sistema agregado.")
+                st.rerun()
             elif submit:
                 st.warning("Complete los campos obligatorios (*).")
     with tab2:
@@ -260,7 +264,7 @@ elif menu == "⚙️ Sistema":
                     submit = st.form_submit_button("✏️ Actualizar Sistema")
                     if submit and passwd == "TQ2026":
                         fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                        nombre_val = nombre if nombre else ""
+                        nombre_val = nombre
                         tipo_filtro_val = tipo_filtro if tipo_filtro else ""
                         modelo_val = modelo if modelo else ""
                         eficiencia_val = eficiencia if eficiencia else ""
@@ -275,7 +279,7 @@ elif menu == "⚙️ Sistema":
                         conn.close()
                         
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                        st.success("✅ Sistema actualizado.")
+                        st.rerun()
                     elif submit:
                         st.error("❌ Contraseña incorrecta.")
     with tab3:
@@ -296,7 +300,7 @@ elif menu == "⚙️ Sistema":
                     conn.commit()
                     conn.close()
                     add_to_historial("ELIMINACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                    st.success("✅ Sistema eliminado.")
+                    st.rerun()
                 else:
                     st.error("❌ Contraseña incorrecta.")
 
