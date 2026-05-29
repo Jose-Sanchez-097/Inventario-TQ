@@ -3,6 +3,7 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 import hashlib
+import time
 
 st.set_page_config(page_title="📦 Gestión de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
@@ -39,7 +40,6 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
     
-    # CORREGIDO: users -> usuarios
     c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
@@ -88,6 +88,20 @@ def add_to_historial(accion, descripcion, usuario):
     except:
         pass
 
+# Función para mostrar mensajes con espera de 5 segundos
+def mostrar_mensaje(mensaje, tipo='success'):
+    if tipo == 'success':
+        msg = st.success(mensaje)
+    elif tipo == 'error':
+        msg = st.error(mensaje)
+    elif tipo == 'warning':
+        msg = st.warning(mensaje)
+    else:
+        msg = st.info(mensaje)
+    
+    time.sleep(5)  # Esperar 5 segundos
+    msg.empty()    # Limpiar el mensaje
+
 if 'sesion_iniciada' not in st.session_state:
     st.session_state.sesion_iniciada = False
 if 'usuario_actual' not in st.session_state:
@@ -114,7 +128,7 @@ def pagina_login():
                 add_to_historial("LOGIN", f"Usuario {usuario} inició sesión", usuario)
                 st.rerun()
             else:
-                st.error("❌ Credenciales incorrectas")
+                mostrar_mensaje("❌ Credenciales incorrectas", 'error')
     st.info("💡 admin / TQ2026")
 
 def mostrar_dashboard():
@@ -171,7 +185,7 @@ def pagina_agregar_insumo():
                 (tipo, modelo if modelo else "", cantidad, cantidad_min, proveedor if proveedor else "", costo, observaciones if observaciones else "", fecha)
             )
             add_to_historial("AGREGAR", tipo, st.session_state.usuario_actual)
-            st.success("✅ Guardado!")
+            mostrar_mensaje("✅ Guardado!", 'success')
             st.rerun()
 
 def pagina_modificar_insumo():
@@ -193,7 +207,7 @@ def pagina_modificar_insumo():
                     fecha = datetime.now().strftime("%Y-%m-%d")
                     execute_query("UPDATE inventario SET tipo_insumo=?, cantidad=?, fecha=? WHERE id=?",
                                 (tipo, cantidad, fecha, item_id))
-                    st.success("✅ Actualizado!")
+                    mostrar_mensaje("✅ Actualizado!", 'success')
                     st.rerun()
 
 def pagina_eliminar_insumo():
@@ -209,10 +223,10 @@ def pagina_eliminar_insumo():
             if passwd == "TQ2026":
                 item_id = int(seleccion.split(" - ")[0])
                 execute_query("DELETE FROM inventario WHERE id=?", (item_id,))
-                st.success("✅ Eliminado!")
+                mostrar_mensaje("✅ Eliminado!", 'success')
                 st.rerun()
             else:
-                st.error("❌ Contraseña incorrecta")
+                mostrar_mensaje("❌ Contraseña incorrecta", 'error')
 
 def pagina_buscar_insumo():
     st.header("🔍 Buscar Insumo")
@@ -248,10 +262,10 @@ def pagina_agregar_sistema():
                 (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha)
             )
             add_to_historial("AGREGAR SISTEMA", equipo, st.session_state.usuario_actual)
-            st.success("✅ Sistema guardado!")
+            mostrar_mensaje("✅ Sistema guardado!", 'success')
             st.rerun()
         elif submit:
-            st.warning("Equipo requerido")
+            mostrar_mensaje("Equipo requerido", 'warning')
 
 def pagina_modificar_sistema():
     st.header("✏️ Modificar Sistema")
@@ -281,7 +295,7 @@ def pagina_modificar_sistema():
                     fecha = datetime.now().strftime("%Y-%m-%d")
                     execute_query("UPDATE sistema SET equipo=?, articulo=?, modelo=?, medida=?, eficiencia=?, cantidad=?, ubicacion=?, observaciones=?, fecha=? WHERE id=?",
                                 (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha, item_id))
-                    st.success("✅ Actualizado!")
+                    mostrar_mensaje("✅ Actualizado!", 'success')
                     st.rerun()
 
 def pagina_eliminar_sistema():
@@ -297,10 +311,10 @@ def pagina_eliminar_sistema():
             if passwd == "TQ2026":
                 item_id = int(seleccion.split(" - ")[0])
                 execute_query("DELETE FROM sistema WHERE id=?", (item_id,))
-                st.success("✅ Eliminado!")
+                mostrar_mensaje("✅ Eliminado!", 'success')
                 st.rerun()
             else:
-                st.error("❌ Contraseña incorrecta")
+                mostrar_mensaje("❌ Contraseña incorrecta", 'error')
 
 def pagina_buscar_sistema():
     st.header("🔍 Buscar Sistema")
