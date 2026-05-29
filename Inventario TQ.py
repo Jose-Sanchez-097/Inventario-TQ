@@ -252,4 +252,22 @@ elif menu == "🔍 Buscar Sistema":
             campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
             nombres_campos_sis = {"nombre": "Nombre del Sistema", "tipo_filtro": "Tipo de Filtro", "modelo": "Modelo", "eficiencia": "Eficiencia", "medidas": "Medidas"}
         with col2:
-            texto_busqueda_sis = st.text_input(f"Buscar por {nombres_campos_sis[campo_busqueda_sis]}", placeholder=f"Ingrese valor para {nombres_c
+            texto_busqueda_sis = st.text_input(f"Buscar por {nombres_campos_sis[campo_busqueda_sis]}", placeholder=f"Ingrese valor para {nombres_campos_sis[campo_busqueda_sis]}...")
+        if texto_busqueda_sis:
+            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
+            if not resultado_sis.empty:
+                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
+                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda_sis}'")
+        else:
+            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
+            st.dataframe(df_sis.set_index('id'), use_container_width=True)
+
+elif menu == "📜 Historial":
+    st.header("📜 Historial de Movimientos")
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
