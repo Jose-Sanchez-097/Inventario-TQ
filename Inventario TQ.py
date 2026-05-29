@@ -360,4 +360,10 @@ def main():
             pagina_modificar_sistema()
         elif menu == "🗑️ Eliminar Sistema":
             pagina_eliminar_sistema()
-        elif menu == "🔍 Buscar Sistema
+        elif menu == "🔍 Buscar Sistema":
+            pagina_buscar_sistema()
+        elif menu == "📜 Historial":
+            pagina_historial()
+
+if __name__ == "__main__":
+    main()
