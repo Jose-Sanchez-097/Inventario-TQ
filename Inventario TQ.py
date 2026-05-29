@@ -131,7 +131,6 @@ elif menu == "➕ Agregar Insumo":
             if tipo:
                 fecha_actual = datetime.now().strftime("%Y-%m-%d")
                 cantidad_int = int(cantidad) if cantidad else 0
-                # Convertir todos los valores None a string vacío
                 modelo_val = modelo if modelo else ""
                 medidas_val = medidas if medidas else ""
                 eficiencia_val = eficiencia if eficiencia else ""
@@ -306,4 +305,19 @@ elif menu == "⚙️ Sistema":
                 if passwd == "TQ2026":
                     sis_id = int(seleccion_sis.split(" - ")[0])
                     sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
-                    execute_query("DELETE FROM sistema WHERE id=?", (
+                    execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
+                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
+                    st.success("✅ Sistema eliminado.")
+                else:
+                    st.error("❌ Contraseña incorrecta.")
+
+# --- 7. BUSCAR SISTEMA ---
+elif menu == "🔍 Buscar Sistema":
+    st.header("Buscar Sistema")
+    df_sis = get_sistema()
+    if df_sis.empty:
+        st.info("No hay sistemas registrados.")
+    else:
+        criterio = st.text_input("Ingrese texto a buscar (Nombre, Tipo de Filtro, Modelo)")
+        if criterio:
+            resultado = df_sis[df_sis['nombre'].str.contains(criterio, case=False, na=False) | df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) |
