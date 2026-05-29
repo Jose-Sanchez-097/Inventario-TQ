@@ -62,11 +62,6 @@ def enviar_datos_formulario(id_val, tipo_val, med_val, efic_val, clase_val, eq_v
     }
     return requests.post(URL_FORM_RESPONSE, data=form_data).status_code == 200
 
-# ... (El resto de tu interfaz y botones igual que lo tenías) ...
-    except Exception as e:
-        st.error(f"Error de red al enviar datos: {e}")
-        return False
-
 # Historial en memoria de sesión
 if "historial" not in st.session_state:
     st.session_state.historial = pd.DataFrame(columns=["Fecha/Hora", "Acción", "Elemento", "Detalle"])
