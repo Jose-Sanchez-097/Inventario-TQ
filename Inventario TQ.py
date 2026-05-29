@@ -21,33 +21,69 @@ div[data-testid="stMetric"]{background:linear-gradient(135deg,#667eea,#764ba2);p
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    
+    # Tabla inventario
     c.execute('''CREATE TABLE IF NOT EXISTS inventario (
         id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT,
         eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0,
         cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo_unitario REAL DEFAULT 0,
         realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT, fecha_creacion TEXT)''')
+    
+    # Tabla sistema
     c.execute('''CREATE TABLE IF NOT EXISTS sistema (
         id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT,
         modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0,
         cantidad_minima INTEGER DEFAULT 5, costo_unitario REAL DEFAULT 0,
         fecha_actualizacion TEXT, fecha_creacion TEXT)''')
+    
+    # Tabla historial
     c.execute('''CREATE TABLE IF NOT EXISTS historial (
         id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    
+    # Tabla usuarios
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL, rol TEXT DEFAULT 'usuario', fecha_creacion TEXT)''')
+    
+    # Tabla proveedores
     c.execute('''CREATE TABLE IF NOT EXISTS proveedores (
         id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, contacto TEXT,
         telefono TEXT, email TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
+    
+    # Tabla ordenes
     c.execute('''CREATE TABLE IF NOT EXISTS ordenes_pedido (
         id INTEGER PRIMARY KEY AUTOINCREMENT, orden_numero TEXT UNIQUE NOT NULL,
         insumo_id INTEGER, cantidad_solicitada INTEGER, proveedor TEXT, estado TEXT DEFAULT 'pendiente',
         fecha_solicitud TEXT, observaciones TEXT, usuario_solicita TEXT)''')
+    
+    # Agregar columnas si no existen (migración)
+    try:
+        c.execute("SELECT costo_unitario FROM inventario LIMIT 1")
+    except:
+        c.execute("ALTER TABLE inventario ADD COLUMN costo_unitario REAL DEFAULT 0")
+    
+    try:
+        c.execute("SELECT cantidad_minima FROM inventario LIMIT 1")
+    except:
+        c.execute("ALTER TABLE inventario ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
+    
+    try:
+        c.execute("SELECT costo_unitario FROM sistema LIMIT 1")
+    except:
+        c.execute("ALTER TABLE sistema ADD COLUMN costo_unitario REAL DEFAULT 0")
+    
+    try:
+        c.execute("SELECT cantidad_minima FROM sistema LIMIT 1")
+    except:
+        c.execute("ALTER TABLE sistema ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
+    
+    # Admin por defecto
     c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
         c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
                  ('admin', password_admin, 'administrador', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    
     conn.commit()
     conn.close()
 
@@ -73,6 +109,9 @@ def get_sistema():
 def get_historial():
     return run_query("SELECT * FROM historial ORDER BY fecha DESC")
 
+def get_proveedores():
+    return run_query("SELECT * FROM proveedores")
+
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -91,18 +130,18 @@ def mostrar_mensaje(mensaje, tipo='success'):
     elif tipo == 'warning': st.warning(mensaje)
     time.sleep(2)
 
-def generar_excel(df, filename):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name=filename)
-    return output.getvalue()
-
 if 'sesion_iniciada' not in st.session_state:
     st.session_state.sesion_iniciada = False
 if 'usuario_actual' not in st.session_state:
     st.session_state.usuario_actual = None
 
+def cerrar_sesion():
+    st.session_state.sesion_iniciada = False
+    st.session_state.usuario_actual = None
+    st.rerun()
+
 init_db()
+
 def pagina_login():
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
@@ -133,7 +172,14 @@ def mostrar_dashboard():
     col1.metric("📦 Insumos", len(df))
     col2.metric("⚙️ Sistemas", len(df_sis))
     col3.metric("🚚 Proveedores", len(df_prov))
-    valor = (df['cantidad'] * df['costo_unitario']).sum() + (df_sis['cantidad'] * df_sis['costo_unitario']).sum()
+    
+    # Calcular valor total de forma segura
+    valor = 0
+    if not df.empty and 'costo_unitario' in df.columns:
+        valor += (df['cantidad'] * df['costo_unitario']).sum()
+    if not df_sis.empty and 'costo_unitario' in df_sis.columns:
+        valor += (df_sis['cantidad'] * df_sis['costo_unitario']).sum()
+    
     col4.metric("💰 Valor", f"${valor:,.0f}")
     
     st.markdown("---")
@@ -142,18 +188,24 @@ def mostrar_dashboard():
     with c1:
         st.subheader("⚠️ Stock Bajo - Insumos")
         if not df.empty:
-            stock = df[df['cantidad'] < df['cantidad_minima']]
+            if 'cantidad_minima' in df.columns:
+                stock = df[df['cantidad'] < df['cantidad_minima']]
+            else:
+                stock = df[df['cantidad'] < 5]
             if not stock.empty:
-                st.error(f"¡{len(stock)} kritisches!")
+                st.error(f"¡{len(stock)} críticos!")
                 st.dataframe(stock[['tipo_insumo','modelo','cantidad','proveedor']])
             else:
                 st.success("✅ OK")
     with c2:
         st.subheader("⚠️ Stock Bajo - Sistemas")
         if not df_sis.empty:
-            stock = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
+            if 'cantidad_minima' in df_sis.columns:
+                stock = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
+            else:
+                stock = df_sis[df_sis['cantidad'] < 5]
             if not stock.empty:
-                st.warning(f"¡{len(stock)} kritisches!")
+                st.warning(f"¡{len(stock)} críticos!")
                 st.dataframe(stock[['nombre','modelo','cantidad']])
             else:
                 st.success("✅ OK")
@@ -164,8 +216,6 @@ def mostrar_dashboard():
     if not df.empty:
         st.dataframe(df)
 
-def get_proveedores():
-    return run_query("SELECT * FROM proveedores")
 def pagina_agregar_insumo():
     st.header("➕ Agregar Insumo")
     with st.form("form_agregar"):
@@ -189,7 +239,7 @@ def pagina_agregar_insumo():
             fecha = datetime.now().strftime("%Y-%m-%d")
             execute_query('''INSERT INTO inventario 
                 (tipo_insumo,medidas,modelo,equipo,cantidad,cantidad_minima,proveedor,costo_unitario,observaciones,fecha_actualizacion,fecha_creacion)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)''',
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''',
                 (tipo,medidas,modelo,equipo,cantidad,cantidad_min,proveedor,costo,observaciones,fecha,fecha))
             add_to_historial("AGREGAR", f"Insumo: {tipo}", st.session_state.usuario_actual)
             mostrar_mensaje("✅ OK")
@@ -213,7 +263,7 @@ def pagina_modificar_insumo():
                     modelo = st.text_input("Modelo", value=item['modelo'])
                 with c2:
                     cantidad = st.number_input("Cantidad", min_value=0, value=int(item['cantidad']))
-                    cantidad_min = st.number_input("Stock Mín", min_value=0, value=int(item['cantidad_minima']))
+                    cantidad_min = st.number_input("Stock Mín", min_value=0, value=int(item.get('cantidad_minima', 5)))
                 submit = st.form_submit_button("✏️ Actualizar")
                 if submit:
                     fecha = datetime.now().strftime("%Y-%m-%d")
@@ -241,6 +291,7 @@ def pagina_eliminar_insumo():
                 st.rerun()
             else:
                 st.error("❌ Error")
+
 def pagina_buscar():
     st.header("🔍 Buscar")
     df = get_inventario()
