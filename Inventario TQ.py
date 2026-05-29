@@ -5,12 +5,6 @@ from datetime import datetime
 
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
-css_themes = """<style>
-@media (prefers-color-scheme: dark) {.stApp { background-color: #0e1117; color: #fafafa; } .stSidebar { background-color: #262730; } .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; } .stButton > button { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; } .stButton > button:hover { background-color: #4a4a4a; } .stDataFrame { background-color: #262730; } div[data-testid="stMetricValue"] { color: #fafafa; } h1, h2, h3, h4, h5, h6 { color: #fafafa; }}
-@media (prefers-color-scheme: light) {.stApp { background-color: #ffffff; color: #262730; } .stSidebar { background-color: #f0f2f6; } .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #ffffff; color: #262730; border: 1px solid #e0e0e0; } .stButton > button { background-color: #ff4b4b; color: #ffffff; border: none; } .stButton > button:hover { background-color: #ff2b2b; } div[data-testid="stMetricValue"] { color: #262730; } h1, h2, h3, h4, h5, h6 { color: #262730; }}
-</style>"""
-st.markdown(css_themes, unsafe_allow_html=True)
-
 DB_FILE = 'inventario.db'
 
 def init_db():
@@ -53,7 +47,8 @@ menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insum
 
 if menu == "🏠 Inicio":
     st.header("Panel de Control en Tiempo Real")
-    df, df_sis = get_inventario(), get_sistema()
+    df = get_inventario()
+    df_sis = get_sistema()
     col1, col2 = st.columns(2)
     col1.metric("Total Insumos", len(df))
     col2.metric("Total Sistemas", len(df_sis))
@@ -251,3 +246,12 @@ elif menu == "🔍 Buscar Sistema":
     else:
         col1, col2 = st.columns([1, 2])
         with col1:
+            campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
+            nombres_campos_sis = {"nombre": "Nombre del Sistema", "tipo_filtro": "Tipo de Filtro", "modelo": "Modelo", "eficiencia": "Eficiencia", "medidas": "Medidas"}
+        with col2:
+            texto_busqueda_sis = st.text_input(f"Buscar por {nombres_campos_sis[campo_busqueda_sis]}", placeholder=f"Ingrese valor para {nombres_campos_sis[campo_busqueda_sis]}...")
+        if texto_busqueda_sis:
+            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
+            if not resultado_sis.empty:
+                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
+                st.dataframe(resultado_sis.set
