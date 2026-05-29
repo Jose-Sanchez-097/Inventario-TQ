@@ -185,7 +185,7 @@ elif menu == "🔍 Buscar Inventario":
         else:
             st.dataframe(df.set_index('id'), use_container_width=True)
 
-elif menu == "⚙️ Sistema":
+elif menu == "⚙️ Agregar Sistema":
     st.header("Gestión de Sistema")
     tab1, tab2, tab3 = st.tabs(["➕ Agregar", "✏️ Modificar", "🗑️ Eliminar"])
     with tab1:
