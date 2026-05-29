@@ -1,206 +1,375 @@
 import streamlit as st
+import sqlite3
 import pandas as pd
-import datetime
-import os
-import uuid
+from datetime import datetime
 
-# --- CONFIGURACIÓN DE LA APP ---
-st.set_page_config(page_title="Gestión de Inventarios", page_icon="📦", layout="wide")
+# --- CONFIGURACIÓN DE LA PÁGINA ---
+st.set_page_config(
+    page_title="Gestión de Inventarios TQ",
+    page_icon="📦",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# --- FUNCIONES DE BASE DE DATOS ---
-FILE_INVENTARIO = "inventario.csv"
-FILE_HISTORIAL = "historial.csv"
-
-def cargar_datos():
-    if not os.path.exists(FILE_INVENTARIO):
-        df = pd.DataFrame(columns=[
-            "ID", "Tipo de Insumo", "Medidas", "Eficiencia", "Modelo", 
-            "Equipo", "Cantidad Actual", "Realizado Por", "Observaciones", "Última Actualización"
-        ])
-        df.to_csv(FILE_INVENTARIO, index=False)
-    return pd.read_csv(FILE_INVENTARIO)
-
-def guardar_datos(df):
-    df.to_csv(FILE_INVENTARIO, index=False)
-
-def cargar_historial():
-    if not os.path.exists(FILE_HISTORIAL):
-        df = pd.DataFrame(columns=["ID_Mov", "ID_Insumo", "Tipo Movimiento", "Fecha", "Usuario"])
-        df.to_csv(FILE_HISTORIAL, index=False)
-    return pd.read_csv(FILE_HISTORIAL)
-
-def guardar_historial(df_hist):
-    df_hist.to_csv(FILE_HISTORIAL, index=False)
-
-def registrar_movimiento(id_insumo, tipo_mov, usuario):
-    df_hist = cargar_historial()
-    nuevo_mov = pd.DataFrame({
-        "ID_Mov": [str(uuid.uuid4())[:8]],
-        "ID_Insumo": [id_insumo],
-        "Tipo Movimiento": [tipo_mov],
-        "Fecha": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-        "Usuario": [usuario]
-    })
-    df_hist = pd.concat([df_hist, nuevo_mov], ignore_index=True)
-    guardar_historial(df_hist)
-
-# --- ESTILOS CSS PARA MÓVIL Y FLUIDEZ ---
+# --- CSS PARA RESPONSIVIDAD MÓVIL ---
 st.markdown("""
     <style>
-    .stButton>button { width: 100%; }
-    .css-1d391kg { padding-top: 1rem; }
+    .stApp { background-color: #f5f5f5; }
+    .element-container div[data-testid="stDataFrame"] { overflow-x: auto; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- TÍTULO E HISTORIAL ---
-st.title("🖥️ Plataforma de Gestión de Insumos")
-st.markdown("---")
+# --- BASE DE DATOS (SQLite) ---
+DB_FILE = 'inventario.db'
 
-# --- LOGICA PRINCIPAL ---
-df_inventario = cargar_datos()
-
-# 1. BARRA LATERAL Y BUSQUEDA
-st.sidebar.header("🔍 Buscar Insumo")
-termino_busqueda = st.sidebar.text_input("Ingrese ID, Modelo o Equipo")
-
-menu = st.sidebar.radio("Menú", ["📊 Dashboard", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "📜 Historial Movimientos"])
-
-# Filtrar datos para búsqueda o visualización
-df_mostrar = df_inventario.copy()
-if termino_busqueda:
-    df_mostrar = df_inventario[
-        df_inventario.apply(lambda row: termino_busqueda.lower() in row.astype(str).str.lower().values, axis=1)
-    ]
-    st.sidebar.success(f"Encontrados: {len(df_mostrar)}")
-
-
-# --- VISTA: DASHBOARD (ALERTAS) ---
-if menu == "📊 Dashboard":
-    st.header("Panel de Control")
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
     
-    # Métricas
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Insumos", len(df_inventario))
-    col2.metric("Unidades Totales", df_inventario["Cantidad Actual"].sum() if not df_inventario.empty else 0)
+    # Tabla de Inventario
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS inventario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_insumo TEXT,
+            medidas TEXT,
+            eficiencia TEXT,
+            modelo TEXT,
+            equipo TEXT,
+            cantidad INTEGER,
+            realizado_por TEXT,
+            observaciones TEXT,
+            fecha_actualizacion TEXT
+        )
+    ''')
     
-    # Alertas de stock bajo
-    alerta_df = df_inventario[df_inventario["Cantidad Actual"] < 5]
-    if not alerta_df.empty:
-        col3.error(f"⚠️ Stock Bajo: {len(alerta_df)} items")
-        st.subheader("⚠️ ALERTA: Insumos con Cantidad < 5")
-        st.dataframe(alerta_df[["ID", "Tipo de Insumo", "Modelo", "Cantidad Actual"]].style.background_color('#ffcccc', axis=0), use_container_width=True)
+    # Tabla de Sistema (Nueva Sección)
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS sistema (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            tipo_filtro TEXT,
+            modelo TEXT,
+            eficiencia TEXT,
+            medidas TEXT,
+            cantidad INTEGER,
+            fecha_actualizacion TEXT
+        )
+    ''')
+    
+    # Tabla de Historial
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS historial (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT,
+            accion TEXT,
+            descripcion TEXT,
+            usuario TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def run_query(query, params=()):
+    conn = sqlite3.connect(DB_FILE)
+    df = pd.read_sql_query(query, conn, params=params if params else ())
+    conn.close()
+    return df
+
+def execute_query(query, params=()):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(query, params)
+    conn.commit()
+    conn.close()
+
+def get_inventario():
+    return run_query("SELECT * FROM inventario")
+
+def get_sistema():
+    return run_query("SELECT * FROM sistema")
+
+def add_to_historial(accion, descripcion, usuario):
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", 
+                  (fecha, accion, descripcion, usuario))
+
+# --- INICIALIZAR ---
+init_db()
+
+# --- INTERFAZ DE USUARIO ---
+st.title("📦 Plataforma de Gestión de Inventarios")
+
+# Menú Lateral
+menu = st.sidebar.selectbox("Menú Principal", 
+    ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", 
+     "🔍 Buscar Inventario", "⚙️ Sistema", "🔍 Buscar Sistema", "📜 Historial"])
+
+# --- 1. INICIO (Dashboard) ---
+if menu == "🏠 Inicio":
+    st.header("Panel de Control en Tiempo Real")
+    df = get_inventario()
+    
+    # Métricas principales
+    col1, col2 = st.columns(2)
+    col1.metric("Total Insumos Registrados", len(df))
+    # Se eliminó "Unidades Totales" según tu solicitud
+    
+    # Alerta de Stock Bajo
+    st.markdown("---")
+    st.subheader("⚠️ Alerta: Stock Bajo (< 5 unidades)")
+    if not df.empty:
+        low_stock = df[df['cantidad'] < 5]
+        if not low_stock.empty:
+            st.error(f"¡Tienes {len(low_stock)} insumos con stock crítico!")
+            st.dataframe(low_stock.set_index('id'), use_container_width=True)
+        else:
+            st.success("✅ El inventario se encuentra en niveles óptimos.")
     else:
-        col3.success("✅ Stock Óptimo")
+        st.info("No hay datos en el inventario.")
 
-    st.subheader("Inventario Completo")
-    st.dataframe(df_mostrar, use_container_width=True)
+    st.subheader("📋 Vista General del Inventario")
+    st.dataframe(df.set_index('id'), use_container_width=True)
 
-
-# --- VISTA: AGREGAR INSUMO ---
+# --- 2. AGREGAR INSUMO ---
 elif menu == "➕ Agregar Insumo":
     st.header("Agregar Nuevo Insumo")
     with st.form("form_agregar"):
-        tipo = st.text_input("Tipo de Insumo")
-        medidas = st.text_input("Medidas")
-        eff = st.selectbox("Eficiencia", ["Nueva", "Usada", "En Reparación"])
-        modelo = st.text_input("Modelo")
-        equipo = st.text_input("Equipo")
-        cant = st.number_input("Cantidad Actual", min_value=0, step=1)
-        user = st.text_input("Realizado Por")
-        obs = st.text_area("Observaciones")
+        st.subheader("Datos del Insumo")
+        c1, c2 = st.columns(2)
+        tipo = c1.text_input("Tipo de Insumo *")
+        modelo = c1.text_input("Modelo")
+        medidas = c2.text_input("Medidas")
+        eficiencia = c2.text_input("Eficiencia (Digitada por Usuario)")
         
-        submit = st.form_submit_button("Guardar Insumo")
+        c3, c4 = st.columns(2)
+        equipo = c3.text_input("Equipo")
+        cantidad = c4.number_input("Cantidad Actual *", min_value=0, step=1)
+        
+        realizado_por = st.text_input("Realizado por")
+        observaciones = st.text_area("Observaciones")
+        
+        submit = st.form_submit_button("💾 Guardar Insumo")
         
         if submit:
-            if tipo and modelo:
-                nuevo_id = str(uuid.uuid4())[:8]
-                nueva_fila = pd.DataFrame({
-                    "ID": [nuevo_id],
-                    "Tipo de Insumo": [tipo],
-                    "Medidas": [medidas],
-                    "Eficiencia": [eff],
-                    "Modelo": [modelo],
-                    "Equipo": [equipo],
-                    "Cantidad Actual": [cant],
-                    "Realizado Por": [user],
-                    "Observaciones": [obs],
-                    "Última Actualización": [datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
-                })
-                df_inventario = pd.concat([df_inventario, nueva_fila], ignore_index=True)
-                guardar_datos(df_inventario)
-                registrar_movimiento(nuevo_id, "ALTA", user)
-                st.success("Insumo guardado correctamente.")
+            if tipo and cantidad >= 0:
+                execute_query('''INSERT INTO inventario 
+                                (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) 
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                              (tipo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, datetime.now().strftime("%Y-%m-%d")))
+                add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad})", realizado_por)
+                st.success("✅ Insumo agregado exitosamente!")
             else:
-                st.error("Los campos Tipo y Modelo son obligatorios.")
+                st.warning("Por favor complete los campos obligatorios (*).")
 
-
-# --- VISTA: MODIFICAR INSUMO ---
+# --- 3. MODIFICAR INSUMO ---
 elif menu == "✏️ Modificar Insumo":
     st.header("Modificar Insumo Existente")
-    ids_disponibles = df_inventario["ID"].tolist()
-    if not ids_disponibles:
-        st.warning("No hay insumos.")
+    df = get_inventario()
+    
+    if df.empty:
+        st.info("No hay insumos para modificar.")
     else:
-        id_selec = st.selectbox("Seleccionar ID a modificar", ids_disponibles)
-        insumo = df_inventario[df_inventario["ID"] == id_selec].iloc[0]
+        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']} ({x['modelo']})", axis=1).tolist()
+        seleccion = st.selectbox("Seleccione Insumo a Modificar", opciones)
         
-        with st.form("form_modificar"):
-            tipo = st.text_input("Tipo de Insumo", value=insumo["Tipo de Insumo"])
-            medidas = st.text_input("Medidas", value=insumo["Medidas"])
-            eff = st.selectbox("Eficiencia", ["Nueva", "Usada", "En Reparación"], index=["Nueva", "Usada", "En Reparación"].index(insumo["Eficiencia"]))
-            modelo = st.text_input("Modelo", value=insumo["Modelo"])
-            equipo = st.text_input("Equipo", value=insumo["Equipo"])
-            cant = st.number_input("Cantidad Actual", min_value=0, value=int(insumo["Cantidad Actual"]))
-            user = st.text_input("Realizado Por", value=insumo["Realizado Por"])
-            obs = st.text_area("Observaciones", value=insumo["Observaciones"])
+        if seleccion:
+            item_id = int(seleccion.split(" - ")[0])
+            item = df[df['id'] == item_id].iloc[0]
             
-            submit = st.form_submit_button("Actualizar Datos")
-            
-            if submit:
-                df_inventario.loc[df_inventario["ID"] == id_selec, 
-                    ["Tipo de Insumo", "Medidas", "Eficiencia", "Modelo", "Equipo", 
-                     "Cantidad Actual", "Realizado Por", "Observaciones", "Última Actualización"]] = [
-                    tipo, medidas, eff, modelo, equipo, cant, user, obs, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                ]
-                guardar_datos(df_inventario)
-                registrar_movimiento(id_selec, "MODIFICACIÓN", user)
-                st.success(f"Insumo {id_selec} actualizado.")
-                st.rerun()
+            with st.form("form_modificar"):
+                st.subheader("Editar Datos")
+                c1, c2 = st.columns(2)
+                tipo = c1.text_input("Tipo de Insumo", value=item['tipo_insumo'])
+                modelo = c1.text_input("Modelo", value=item['modelo'])
+                medidas = c2.text_input("Medidas", value=item['medidas'])
+                eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
+                
+                c3, c4 = st.columns(2)
+                equipo = c3.text_input("Equipo", value=item['equipo'])
+                cantidad = c4.number_input("Cantidad Actual", min_value=0, value=int(item['cantidad']))
+                
+                observaciones = st.text_area("Observaciones", value=item['observaciones'])
+                
+                passwd = st.text_input("Contraseña (Requerido para modificar)", type="password")
+                
+                submit = st.form_submit_button("✏️ Actualizar")
+                
+                if submit:
+                    if passwd == "TQ2026":
+                        execute_query('''UPDATE inventario SET 
+                                        tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? 
+                                        WHERE id=?''', 
+                                      (tipo, medidas, eficiencia, modelo, equipo, cantidad, observaciones, datetime.now().strftime("%Y-%m-%d"), item_id))
+                        add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
+                        st.success("✅ Insumo actualizado.")
+                    else:
+                        st.error("❌ Contraseña incorrecta. Use TQ2026")
 
-
-# --- VISTA: ELIMINAR INSUMO ---
+# --- 4. ELIMINAR INSUMO ---
 elif menu == "🗑️ Eliminar Insumo":
     st.header("Eliminar Insumo")
-    st.warning("Para eliminar un insumo debe verificar su identidad y contraseña.")
+    df = get_inventario()
     
-    ids_disponibles = df_inventario["ID"].tolist()
-    if ids_disponibles:
-        id_del = st.selectbox("Seleccionar ID a eliminar", ids_disponibles)
-        password_input = st.text_input("Contraseña de Seguridad (TQ2026)", type="password")
-        
-        if st.button("Confirmar Eliminación"):
-            if password_input == "TQ2026":
-                # Guardar historial antes de borrar
-                registrar_movimiento(id_del, "BAJA (ELIMINACIÓN)", "Admin")
-                df_inventario = df_inventario[df_inventario["ID"] != id_del]
-                guardar_datos(df_inventario)
-                st.success(f"Insumo {id_del} eliminado del sistema.")
-                st.rerun()
-            else:
-                st.error("Contraseña incorrecta.")
+    if df.empty:
+        st.info("Inventario vacío.")
     else:
-        st.info("No hay insumos para eliminar.")
-
-
-# --- VISTA: HISTORIAL ---
-elif menu == "📜 Historial Movimientos":
-    st.header("Historial Completo")
-    df_hist = cargar_historial()
-    
-    # Filtrar búsqueda en historial
-    search_hist = st.text_input("Buscar en Historial")
-    if search_hist:
-        df_hist = df_hist[df_hist.apply(lambda row: search_hist.lower() in row.astype(str).str.lower().values, axis=1)]
+        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
+        seleccion = st.selectbox("Seleccione Insumo a Eliminar", opciones)
         
-    st.dataframe(df_hist.sort_values(by="Fecha", ascending=False), use_container_width=True)
+        passwd = st.text_input("Ingrese Contraseña para Confirmar Eliminación", type="password")
+        
+        if st.button("🗑️ Eliminar Definitivamente"):
+            if passwd == "TQ2026":
+                item_id = int(seleccion.split(" - ")[0])
+                item_name = df[df['id'] == item_id]['tipo_insumo'].values[0]
+                execute_query("DELETE FROM inventario WHERE id=?", (item_id,))
+                add_to_historial("ELIMINACIÓN", f"Insumo ID: {item_id} - {item_name}", "Usuario Admin")
+                st.success("✅ Insumo eliminado.")
+            else:
+                st.error("❌ Contraseña incorrecta.")
+
+# --- 5. BUSCAR INSUMO ---
+elif menu == "🔍 Buscar Insumo":
+    st.header("Buscar Insumo")
+    df = get_inventario()
     
+    if df.empty:
+        st.info("No hay insumos registrados.")
+    else:
+        criterio = st.text_input("Ingrese texto a buscar (Tipo, Modelo, Equipo, etc.)")
+        if criterio:
+            resultado = df[
+                df['tipo_insumo'].str.contains(criterio, case=False, na=False) |
+                df['modelo'].str.contains(criterio, case=False, na=False) |
+                df['equipo'].str.contains(criterio, case=False, na=False)
+            ]
+            st.dataframe(resultado.set_index('id'), use_container_width=True)
+        else:
+            st.dataframe(df.set_index('id'), use_container_width=True)
+
+# --- 6. SISTEMA (Nueva Sección) ---
+elif menu == "⚙️ Sistema":
+    st.header("Gestión de Sistema")
+    
+    tab1, tab2, tab3 = st.tabs(["➕ Agregar", "✏️ Modificar", "🗑️ Eliminar"])
+    
+    # AGREGAR EN SISTEMA
+    with tab1:
+        st.subheader("Agregar Nuevo Sistema")
+        with st.form("form_sistema_agregar"):
+            c1, c2 = st.columns(2)
+            nombre = c1.text_input("Nombre del Sistema *")
+            tipo_filtro = c1.text_input("Tipo de Filtro")
+            modelo = c2.text_input("Modelo")
+            eficiencia = c2.text_input("Eficiencia")
+            
+            c3, c4 = st.columns(2)
+            medidas = c3.text_input("Medidas")
+            cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
+            
+            submit = st.form_submit_button("💾 Guardar Sistema")
+            
+            if submit:
+                if nombre and cantidad >= 0:
+                    execute_query('''INSERT INTO sistema 
+                                   (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) 
+                                   VALUES (?, ?, ?, ?, ?, ?, ?)''', 
+                                  (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, datetime.now().strftime("%Y-%m-%d")))
+                    add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
+                    st.success("✅ Sistema agregado.")
+                else:
+                    st.warning("Complete los campos obligatorios (*).")
+    
+    # MODIFICAR EN SISTEMA
+    with tab2:
+        st.subheader("Modificar Sistema")
+        df_sis = get_sistema()
+        
+        if df_sis.empty:
+            st.info("No hay sistemas registrados.")
+        else:
+            opciones_sis = df_sis.apply(lambda x: f"{x['id']} - {x['nombre']}", axis=1).tolist()
+            seleccion_sis = st.selectbox("Seleccione Sistema a Modificar", opciones_sis)
+            
+            if seleccion_sis:
+                sis_id = int(seleccion_sis.split(" - ")[0])
+                sis_item = df_sis[df_sis['id'] == sis_id].iloc[0]
+                
+                with st.form("form_sistema_mod"):
+                    c1, c2 = st.columns(2)
+                    nombre = c1.text_input("Nombre", value=sis_item['nombre'])
+                    tipo_filtro = c1.text_input("Tipo de Filtro", value=sis_item['tipo_filtro'])
+                    modelo = c2.text_input("Modelo", value=sis_item['modelo'])
+                    eficiencia = c2.text_input("Eficiencia", value=sis_item['eficiencia'])
+                    
+                    c3, c4 = st.columns(2)
+                    medidas = c3.text_input("Medidas", value=sis_item['medidas'])
+                    cantidad = c4.number_input("Cantidad", min_value=0, value=int(sis_item['cantidad']))
+                    
+                    passwd = st.text_input("Contraseña (TQ2026)", type="password")
+                    
+                    submit = st.form_submit_button("✏️ Actualizar Sistema")
+                    
+                    if submit:
+                        if passwd == "TQ2026":
+                            execute_query('''UPDATE sistema SET 
+                                            nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? 
+                                            WHERE id=?''', 
+                                          (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, datetime.now().strftime("%Y-%m-%d"), sis_id))
+                            add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
+                            st.success("✅ Sistema actualizado.")
+                        else:
+                            st.error("❌ Contraseña incorrecta.")
+    
+    # ELIMINAR EN SISTEMA
+    with tab3:
+        st.subheader("Eliminar Sistema")
+        df_sis = get_sistema()
+        
+        if df_sis.empty:
+            st.info("No hay sistemas.")
+        else:
+            opciones_sis = df_sis.apply(lambda x: f"{x['id']} - {x['nombre']}", axis=1).tolist()
+            seleccion_sis = st.selectbox("Seleccione Sistema a Eliminar", opciones_sis)
+            
+            passwd = st.text_input("Contraseña (TQ2026)", type="password")
+            
+            if st.button("🗑️ Eliminar Sistema"):
+                if passwd == "TQ2026":
+                    sis_id = int(seleccion_sis.split(" - ")[0])
+                    sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
+                    execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
+                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
+                    st.success("✅ Sistema eliminado.")
+                else:
+                    st.error("❌ Contraseña incorrecta.")
+
+# --- 7. BUSCAR SISTEMA ---
+elif menu == "🔍 Buscar Sistema":
+    st.header("Buscar Sistema")
+    df_sis = get_sistema()
+    
+    if df_sis.empty:
+        st.info("No hay sistemas registrados.")
+    else:
+        criterio = st.text_input("Ingrese texto a buscar (Nombre, Tipo de Filtro, Modelo)")
+        if criterio:
+            resultado = df_sis[
+                df_sis['nombre'].str.contains(criterio, case=False, na=False) |
+                df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) |
+                df_sis['modelo'].str.contains(criterio, case=False, na=False)
+            ]
+            st.dataframe(resultado.set_index('id'), use_container_width=True)
+        else:
+            st.dataframe(df_sis.set_index('id'), use_container_width=True)
+
+# --- 8. HISTORIAL ---
+elif menu == "📜 Historial":
+    st.header("Historial de Movimientos")
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+        
