@@ -39,7 +39,8 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
     
-    c.execute("SELECT id FROM users WHERE username = 'admin'")
+    # CORREGIDO: users -> usuarios
+    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
         c.execute("INSERT INTO usuarios (username, password, rol) VALUES (?, ?, ?)",
