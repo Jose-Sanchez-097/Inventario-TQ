@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
+import time
 
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
@@ -44,6 +45,13 @@ def get_sistema():
 def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
+
+# Función para mostrar mensaje con espera
+def mostrar_mensaje_exito(mensaje):
+    success_placeholder = st.empty()
+    success_placeholder.success(mensaje)
+    time.sleep(5)
+    success_placeholder.empty()
 
 init_db()
 
@@ -110,9 +118,7 @@ elif menu == "➕ Agregar Insumo":
             conn.close()
             
             add_to_historial("ALTA", f"Insumo: {tipo_val}", realizado_por_val)
-            # Mostrar mensaje de éxito ANTES de rerun
-            st.success("✅ Insumo agregado exitosamente!")
-            st.balloons()
+            mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
             st.rerun()
         elif submit:
             st.warning("Por favor complete los campos obligatorios (*).")
@@ -158,7 +164,7 @@ elif menu == "✏️ Modificar Insumo":
                     conn.close()
                     
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Admin")
-                    st.success("✅ Insumo actualizado exitosamente!")
+                    mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
                     st.rerun()
                 elif submit:
                     st.error("❌ Contraseña incorrecta. Use TQ2026")
@@ -181,7 +187,7 @@ elif menu == "🗑️ Eliminar Insumo":
                 conn.commit()
                 conn.close()
                 add_to_historial("ELIMINACIÓN", f"ID: {item_id}", "Admin")
-                st.success("✅ Insumo eliminado exitosamente!")
+                mostrar_mensaje_exito("✅ Insumo eliminado exitosamente!")
                 st.rerun()
             else:
                 st.error("❌ Contraseña incorrecta.")
@@ -238,8 +244,7 @@ elif menu == "⚙️ Sistema":
                 conn.close()
                 
                 add_to_historial("ALTA SISTEMA", f"Sistema: {nombre_val}", "Usuario")
-                st.success("✅ Sistema agregado exitosamente!")
-                st.balloons()
+                mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
                 st.rerun()
             elif submit:
                 st.warning("Complete los campos obligatorios (*).")
@@ -282,7 +287,7 @@ elif menu == "⚙️ Sistema":
                         conn.close()
                         
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                        st.success("✅ Sistema actualizado exitosamente!")
+                        mostrar_mensaje_exito("✅ Sistema actualizado exitosamente!")
                         st.rerun()
                     elif submit:
                         st.error("❌ Contraseña incorrecta.")
@@ -304,7 +309,7 @@ elif menu == "⚙️ Sistema":
                     conn.commit()
                     conn.close()
                     add_to_historial("ELIMINACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                    st.success("✅ Sistema eliminado exitosamente!")
+                    mostrar_mensaje_exito("✅ Sistema eliminado exitosamente!")
                     st.rerun()
                 else:
                     st.error("❌ Contraseña incorrecta.")
@@ -316,21 +321,4 @@ elif menu == "🔍 Buscar Sistema":
         st.info("No hay sistemas registrados.")
     else:
         campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
-        texto_busqueda_sis = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
-        if texto_busqueda_sis:
-            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
-            if not resultado_sis.empty:
-                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron resultados")
-        else:
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-elif menu == "📜 Historial":
-    st.header("📜 Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+        texto_busqueda_sis = st.text_input("
