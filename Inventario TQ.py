@@ -24,12 +24,9 @@ def init_db():
     # Verificar si tabla sistema existe
     existe = c.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sistema'").fetchone()[0] > 0
     if existe:
-        try:
-            c.execute("ALTER TABLE sistema RENAME TO sistema_old")
-        except:
-            pass  # Si falla, continuar
+        c.execute("DROP TABLE sistema")
     
-    # Crear nueva tabla sistema
+    # Crear nueva tabla sistema directamente
     c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, fecha TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
