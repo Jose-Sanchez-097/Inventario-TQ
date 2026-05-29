@@ -19,7 +19,7 @@ URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_c
 # --- LECTURA DIRECTA INTEGRAL MAPEADA ---
 try:
     @st.cache_data(ttl=30)
-def obtener_datos_rapido(url):
+    def obtener_datos_rapido(url):
     return pd.read_csv(url)
     
     if not df_raw.empty:
