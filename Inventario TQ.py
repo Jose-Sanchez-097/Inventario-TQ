@@ -21,24 +21,21 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Crear tablas sin eliminar las existentes
+    # Renombrar tabla sistema existente si existe
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
+    if c.fetchone():
+        # Renombrar tabla antigua
+        c.execute("ALTER TABLE sistema RENAME TO sistema_old")
+    
+    # Crear nueva tabla sistema con estructura correcta
+    c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, fecha TEXT)''')
+    
+    # Crear otras tablas
     c.execute('''CREATE TABLE IF NOT EXISTS inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, modelo TEXT, cantidad INTEGER DEFAULT 0, cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo REAL DEFAULT 0, observaciones TEXT, fecha TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, rol TEXT DEFAULT 'usuario')''')
     
-    # Verificar si tabla sistema existe y crearla sin cantidad_minima
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
-    if c.fetchone():
-        # Tabla existe, agregar columna cantidad_minima si no existe
-        try:
-            c.execute("ALTER TABLE sistema ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
-        except:
-            pass  # La columna ya existe
-    else:
-        # Crear tabla sistema SIN cantidad_minima
-        c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo TEXT NOT NULL, articulo TEXT, modelo TEXT, medida TEXT, eficiencia TEXT, cantidad INTEGER DEFAULT 0, ubicacion TEXT, observaciones TEXT, fecha TEXT)''')
-    
-    # crear admin
+    # Crear admin
     c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
     if not c.fetchone():
         password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
@@ -140,7 +137,7 @@ def mostrar_dashboard():
     with c2:
         st.subheader("⚠️ Stock Bajo - Sistemas")
         if not df_sis.empty:
-            stock = df_sis[df_sis['cantidad'] < df_sis.get('cantidad_minima', 5)]
+            stock = df_sis[df_sis['cantidad'] < 5]
             if not stock.empty: st.warning(f"¡{len(stock)} críticos!")
             else: st.success("✅ OK")
     st.markdown("---")
@@ -236,7 +233,6 @@ def pagina_agregar_sistema():
         submit = st.form_submit_button("💾 Guardar")
         if submit and equipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
-            # SIN cantidad_minima - solo 9 valores
             execute_query("INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha))
             add_to_historial("AGREGAR SISTEMA", equipo, st.session_state.usuario_actual)
