@@ -21,9 +21,9 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Verificar si tabla sistema existe
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
-    if c.fetchone():
+    # Verificar si tabla sistema existe guardando resultado
+    result = c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'").fetchone()
+    if result:
         c.execute("ALTER TABLE sistema RENAME TO sistema_old")
     
     # Crear nueva tabla sistema
