@@ -19,15 +19,11 @@ div[data-testid="stMetric"]{background:linear-gradient(135deg,#667eea,#764ba2);p
 """, unsafe_allow_html=True)
 
 def init_db():
-    # Eliminar base de datos existente para empezar limpio
-    if os.path.exists(DB_FILE):
-        os.remove(DB_FILE)
-    
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Tabla inventario - solo columnas esenciales
-    c.execute('''CREATE TABLE inventario (
+    # Tabla inventario - solo crear si no existe
+    c.execute('''CREATE TABLE IF NOT EXISTS inventario (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         tipo_insumo TEXT NOT NULL, 
         medidas TEXT DEFAULT '',
@@ -44,7 +40,7 @@ def init_db():
         fecha_creacion TEXT)''')
     
     # Tabla sistema
-    c.execute('''CREATE TABLE sistema (
+    c.execute('''CREATE TABLE IF NOT EXISTS sistema (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         nombre TEXT NOT NULL, 
         tipo_filtro TEXT DEFAULT '',
@@ -58,7 +54,7 @@ def init_db():
         fecha_creacion TEXT)''')
     
     # Tabla historial
-    c.execute('''CREATE TABLE historial (
+    c.execute('''CREATE TABLE IF NOT EXISTS historial (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         fecha TEXT, 
         accion TEXT, 
@@ -66,7 +62,7 @@ def init_db():
         usuario TEXT)''')
     
     # Tabla usuarios
-    c.execute('''CREATE TABLE usuarios (
+    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL, 
@@ -74,7 +70,7 @@ def init_db():
         fecha_creacion TEXT)''')
     
     # Tabla proveedores
-    c.execute('''CREATE TABLE proveedores (
+    c.execute('''CREATE TABLE IF NOT EXISTS proveedores (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         nombre TEXT NOT NULL, 
         contacto TEXT DEFAULT '',
@@ -84,7 +80,7 @@ def init_db():
         fecha_actualizacion TEXT)''')
     
     # Tabla ordenes
-    c.execute('''CREATE TABLE ordenes_pedido (
+    c.execute('''CREATE TABLE IF NOT EXISTS ordenes_pedido (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         orden_numero TEXT UNIQUE NOT NULL,
         insumo_id INTEGER, 
@@ -95,10 +91,12 @@ def init_db():
         observaciones TEXT DEFAULT '', 
         usuario_solicita TEXT)''')
     
-    # Admin por defecto
-    password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
-    c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
-             ('admin', password_admin, 'administrador', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    # Admin por defecto - solo si no existe
+    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
+    if not c.fetchone():
+        password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
+        c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
+                 ('admin', password_admin, 'administrador', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     conn.commit()
     conn.close()
@@ -110,7 +108,7 @@ def run_query(query, params=()):
         conn.close()
         return df
     except Exception as e:
-        st.error(f"Error en consulta: {e}")
+        print(f"Error en consulta: {e}")
         return pd.DataFrame()
 
 def execute_query(query, params=()):
@@ -119,14 +117,18 @@ def execute_query(query, params=()):
         c = conn.cursor()
         c.execute(query, params)
         conn.commit()
+        affected = c.rowcount
         conn.close()
+        print(f"Filas afectadas: {affected}")
         return True
     except Exception as e:
-        st.error(f"Error en ejecución: {e}")
+        print(f"Error en ejecución: {e}")
         return False
 
 def get_inventario():
-    return run_query("SELECT * FROM inventario")
+    df = run_query("SELECT id, tipo_insumo, modelo, equipo, cantidad, cantidad_minima, proveedor, costo_unitario, observaciones FROM inventario")
+    print(f"Inventario: {len(df)} registros")
+    return df
 
 def get_sistema():
     return run_query("SELECT * FROM sistema")
@@ -153,9 +155,12 @@ def add_to_historial(accion, descripcion, usuario):
         pass
 
 def mostrar_mensaje(mensaje, tipo='success'):
-    if tipo == 'success': st.success(mensaje)
-    elif tipo == 'error': st.error(mensaje)
-    elif tipo == 'warning': st.warning(mensaje)
+    if tipo == 'success': 
+        st.success(mensaje)
+    elif tipo == 'error': 
+        st.error(mensaje)
+    elif tipo == 'warning': 
+        st.warning(mensaje)
     time.sleep(2)
 
 if 'sesion_iniciada' not in st.session_state:
@@ -168,6 +173,7 @@ def cerrar_sesion():
     st.session_state.usuario_actual = None
     st.rerun()
 
+# Inicializar base de datos
 init_db()
 
 def pagina_login():
@@ -218,9 +224,7 @@ def mostrar_dashboard():
             stock = df[df['cantidad'] < df['cantidad_minima']]
             if not stock.empty:
                 st.error(f"¡{len(stock)} críticos!")
-                cols = [c for c in ['tipo_insumo','modelo','cantidad','proveedor'] if c in stock.columns]
-                if cols:
-                    st.dataframe(stock[cols])
+                st.dataframe(stock[['tipo_insumo','modelo','cantidad','proveedor']])
             else:
                 st.success("✅ OK")
     with c2:
@@ -229,9 +233,7 @@ def mostrar_dashboard():
             stock = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
             if not stock.empty:
                 st.warning(f"¡{len(stock)} críticos!")
-                cols = [c for c in ['nombre','modelo','cantidad'] if c in stock.columns]
-                if cols:
-                    st.dataframe(stock[cols])
+                st.dataframe(stock[['nombre','modelo','cantidad']])
             else:
                 st.success("✅ OK")
     
@@ -239,6 +241,8 @@ def mostrar_dashboard():
     st.subheader("📋 Inventario")
     if not df.empty:
         st.dataframe(df)
+    else:
+        st.info("No hay insumos registrados")
 
 def pagina_agregar_insumo():
     st.header("➕ Agregar Insumo")
@@ -264,14 +268,19 @@ def pagina_agregar_insumo():
         if submit and tipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
             
-            # Valores por defecto para campos vacíos
-            modelo = modelo if modelo else ""
-            medidas = medidas if medidas else ""
-            equipo = equipo if equipo else ""
-            proveedor = proveedor if proveedor else ""
-            observaciones = observaciones if observaciones else ""
+            # Valores por defecto
+            modelo = modelo.strip() if modelo else ""
+            medidas = medidas.strip() if medidas else ""
+            equipo = equipo.strip() if equipo else ""
+            proveedor = proveedor.strip() if proveedor else ""
+            observaciones = observaciones.strip() if observaciones else ""
             
-            # Consulta simplificada
+            # Verificar que tipo no esté vacío
+            tipo = tipo.strip()
+            
+            print(f"Guardando: tipo={tipo}, modelo={modelo}, cantidad={cantidad}")
+            
+            # consulta
             success = execute_query(
                 "INSERT INTO inventario (tipo_insumo, medidas, modelo, equipo, cantidad, cantidad_minima, proveedor, costo_unitario, observaciones, fecha_actualizacion, fecha_creacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (tipo, medidas, modelo, equipo, cantidad, cantidad_min, proveedor, costo, observaciones, fecha, fecha)
@@ -279,21 +288,22 @@ def pagina_agregar_insumo():
             
             if success:
                 add_to_historial("AGREGAR", f"Insumo: {tipo}", st.session_state.usuario_actual)
-                mostrar_mensaje("✅ Insumo agregado correctamente")
+                st.success("✅ Insumo guardado exitosamente!")
+                time.sleep(1)
                 st.rerun()
             else:
                 st.error("❌ Error al guardar")
         elif submit:
-            st.warning("Completar tipo requerido")
+            st.warning("El campo Tipo es requerido")
 
 def pagina_modificar_insumo():
     st.header("✏️ Modificar Insumo")
     df = get_inventario()
     if df.empty:
-        st.info("Vacío")
+        st.info("No hay insumos para modificar")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccionar", opciones)
+        seleccion = st.selectbox("Seleccionar insumo", opciones)
         if seleccion:
             item_id = int(seleccion.split(" - ")[0])
             item = df[df['id'] == item_id].iloc[0]
@@ -313,36 +323,36 @@ def pagina_modificar_insumo():
                         (tipo, modelo, cantidad, cantidad_min, fecha, item_id)
                     )
                     add_to_historial("MODIFICAR", f"ID: {item_id}", st.session_state.usuario_actual)
-                    mostrar_mensaje("✅ OK")
+                    st.success("✅ Actualizado!")
                     st.rerun()
 
 def pagina_eliminar_insumo():
     st.header("🗑️ Eliminar Insumo")
     df = get_inventario()
     if df.empty:
-        st.info("Vacío")
+        st.info("Inventario vacío")
     else:
         opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccionar", opciones)
+        seleccion = st.selectbox("Seleccionar insumo", opciones)
         passwd = st.text_input("Contraseña", type="password")
         if st.button("🗑️ Eliminar"):
             if passwd == "TQ2026":
                 item_id = int(seleccion.split(" - ")[0])
                 execute_query("DELETE FROM inventario WHERE id=?", (item_id,))
                 add_to_historial("ELIMINAR", f"ID: {item_id}", st.session_state.usuario_actual)
-                mostrar_mensaje("✅ OK")
+                st.success("✅ Eliminado!")
                 st.rerun()
             else:
-                st.error("❌ Error")
+                st.error("❌ Contraseña incorrecta")
 
 def pagina_buscar():
-    st.header("🔍 Buscar")
+    st.header("🔍 Buscar Insumo")
     df = get_inventario()
     if df.empty:
         st.info("Sin datos")
     else:
-        columnas = [c for c in df.columns]
-        campo = st.selectbox("Campo", columnas)
+        columnas = list(df.columns)
+        campo = st.selectbox("Campo de búsqueda", columnas)
         texto = st.text_input("Buscar", placeholder="...")
         if texto:
             res = df[df[campo].astype(str).str.contains(texto, case=False, na=False)]
@@ -368,7 +378,7 @@ def pagina_sistema():
                 (nombre, modelo if modelo else "", cantidad, fecha, fecha)
             )
             add_to_historial("AGREGAR SISTEMA", nombre, st.session_state.usuario_actual)
-            mostrar_mensaje("✅ OK")
+            st.success("✅ Sistema guardado!")
             st.rerun()
 
 def pagina_historial():
