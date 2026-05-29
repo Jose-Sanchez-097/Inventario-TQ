@@ -7,11 +7,9 @@ st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", lay
 
 DB_FILE = 'inventario.db'
 
-# NO eliminar la base de datos - solo crear tablas si no existen
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # Verificar si las tablas existen
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventario'")
     if not c.fetchone():
         c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
@@ -94,7 +92,6 @@ elif menu == "➕ Agregar Insumo":
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             cantidad_int = int(cantidad) if cantidad else 0
             
-            # Convertir valores
             tipo_val = tipo if tipo else ""
             modelo_val = modelo if modelo else ""
             medidas_val = medidas if medidas else ""
@@ -103,7 +100,6 @@ elif menu == "➕ Agregar Insumo":
             realizado_por_val = realizado_por if realizado_por else ""
             observaciones_val = observaciones if observaciones else ""
             
-            # SQL con f-string
             sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) 
             VALUES ('{tipo_val}', '{medidas_val}', '{eficiencia_val}', '{modelo_val}', '{equipo_val}', {cantidad_int}, '{realizado_por_val}', '{observaciones_val}', '{fecha_actual}')"""
             
@@ -114,6 +110,9 @@ elif menu == "➕ Agregar Insumo":
             conn.close()
             
             add_to_historial("ALTA", f"Insumo: {tipo_val}", realizado_por_val)
+            # Mostrar mensaje de éxito ANTES de rerun
+            st.success("✅ Insumo agregado exitosamente!")
+            st.balloons()
             st.rerun()
         elif submit:
             st.warning("Por favor complete los campos obligatorios (*).")
@@ -159,6 +158,7 @@ elif menu == "✏️ Modificar Insumo":
                     conn.close()
                     
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id}", "Admin")
+                    st.success("✅ Insumo actualizado exitosamente!")
                     st.rerun()
                 elif submit:
                     st.error("❌ Contraseña incorrecta. Use TQ2026")
@@ -181,6 +181,7 @@ elif menu == "🗑️ Eliminar Insumo":
                 conn.commit()
                 conn.close()
                 add_to_historial("ELIMINACIÓN", f"ID: {item_id}", "Admin")
+                st.success("✅ Insumo eliminado exitosamente!")
                 st.rerun()
             else:
                 st.error("❌ Contraseña incorrecta.")
@@ -237,6 +238,8 @@ elif menu == "⚙️ Sistema":
                 conn.close()
                 
                 add_to_historial("ALTA SISTEMA", f"Sistema: {nombre_val}", "Usuario")
+                st.success("✅ Sistema agregado exitosamente!")
+                st.balloons()
                 st.rerun()
             elif submit:
                 st.warning("Complete los campos obligatorios (*).")
@@ -279,6 +282,7 @@ elif menu == "⚙️ Sistema":
                         conn.close()
                         
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
+                        st.success("✅ Sistema actualizado exitosamente!")
                         st.rerun()
                     elif submit:
                         st.error("❌ Contraseña incorrecta.")
@@ -300,6 +304,7 @@ elif menu == "⚙️ Sistema":
                     conn.commit()
                     conn.close()
                     add_to_historial("ELIMINACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
+                    st.success("✅ Sistema eliminado exitosamente!")
                     st.rerun()
                 else:
                     st.error("❌ Contraseña incorrecta.")
