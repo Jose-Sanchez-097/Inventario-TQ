@@ -7,8 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
 # CSS dinamico para tema oscuro/claro
-css_themes = """
-<style>
+css_themes = """<style>
 @media (prefers-color-scheme: dark) {
 .stApp { background-color: #0e1117; color: #fafafa; }
 .stSidebar { background-color: #262730; }
@@ -28,8 +27,7 @@ h1, h2, h3, h4, h5, h6 { color: #fafafa; }
 div[data-testid="stMetricValue"] { color: #262730; }
 h1, h2, h3, h4, h5, h6 { color: #262730; }
 }
-</style>
-"""
+</style>"""
 st.markdown(css_themes, unsafe_allow_html=True)
 
 # Base de datos SQLite
@@ -67,15 +65,12 @@ def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
 
-# Inicializar
 init_db()
 
-# Interfaz de usuario
 st.title("📦 Plataforma de Gestion de Inventarios")
 
 menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "⚙️ Sistema", "🔍 Buscar Sistema", "📜 Historial"])
 
-# Inicio
 if menu == "🏠 Inicio":
     st.header("Panel de Control en Tiempo Real")
     df = get_inventario()
@@ -99,7 +94,6 @@ if menu == "🏠 Inicio":
     st.subheader("📋 Vista General del Inventario")
     st.dataframe(df.set_index('id'), use_container_width=True)
 
-# Agregar Insumo
 elif menu == "➕ Agregar Insumo":
     st.header("Agregar Nuevo Insumo")
     with st.form("form_agregar"):
@@ -124,7 +118,6 @@ elif menu == "➕ Agregar Insumo":
                 equipo_val = equipo if equipo else ""
                 realizado_por_val = realizado_por if realizado_por else ""
                 observaciones_val = observaciones if observaciones else ""
-                
                 execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                             (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, realizado_por_val, observaciones_val, fecha_actual))
                 add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por_val)
@@ -132,7 +125,6 @@ elif menu == "➕ Agregar Insumo":
             else:
                 st.warning("Por favor complete los campos obligatorios (*).")
 
-# Modificar Insumo
 elif menu == "✏️ Modificar Insumo":
     st.header("Modificar Insumo Existente")
     df = get_inventario()
@@ -165,7 +157,6 @@ elif menu == "✏️ Modificar Insumo":
                         eficiencia_val = eficiencia if eficiencia else ""
                         equipo_val = equipo if equipo else ""
                         observaciones_val = observaciones if observaciones else ""
-                        
                         execute_query("UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
                                     (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, observaciones_val, fecha_actual, item_id))
                         add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
@@ -173,7 +164,6 @@ elif menu == "✏️ Modificar Insumo":
                     else:
                         st.error("❌ Contraseña incorrecta. Use TQ2026")
 
-# Eliminar Insumo
 elif menu == "🗑️ Eliminar Insumo":
     st.header("Eliminar Insumo")
     df = get_inventario()
@@ -193,7 +183,6 @@ elif menu == "🗑️ Eliminar Insumo":
             else:
                 st.error("❌ Contraseña incorrecta.")
 
-# Buscar Insumo
 elif menu == "🔍 Buscar Insumo":
     st.header("Buscar Insumo")
     df = get_inventario()
@@ -207,7 +196,6 @@ elif menu == "🔍 Buscar Insumo":
         else:
             st.dataframe(df.set_index('id'), use_container_width=True)
 
-# Sistema
 elif menu == "⚙️ Sistema":
     st.header("Gestión de Sistema")
     tab1, tab2, tab3 = st.tabs(["➕ Agregar", "✏️ Modificar", "🗑️ Eliminar"])
@@ -231,7 +219,6 @@ elif menu == "⚙️ Sistema":
                     modelo_val = modelo if modelo else ""
                     eficiencia_val = eficiencia if eficiencia else ""
                     medidas_val = medidas if medidas else ""
-                    
                     execute_query("INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
                                 (nombre, tipo_filtro_val, modelo_val, eficiencia_val, medidas_val, cantidad_int, fecha_actual))
                     add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
@@ -268,7 +255,6 @@ elif menu == "⚙️ Sistema":
                             modelo_val = modelo if modelo else ""
                             eficiencia_val = eficiencia if eficiencia else ""
                             medidas_val = medidas if medidas else ""
-                            
                             execute_query("UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
                                         (nombre, tipo_filtro_val, modelo_val, eficiencia_val, medidas_val, cantidad_int, fecha_actual, sis_id))
                             add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
@@ -294,7 +280,6 @@ elif menu == "⚙️ Sistema":
                 else:
                     st.error("❌ Contraseña incorrecta.")
 
-# Buscar Sistema
 elif menu == "🔍 Buscar Sistema":
     st.header("Buscar Sistema")
     df_sis = get_sistema()
@@ -308,11 +293,10 @@ elif menu == "🔍 Buscar Sistema":
         else:
             st.dataframe(df_sis.set_index('id'), use_container_width=True)
 
-# Historial
 elif menu == "📜 Historial":
     st.header("Historial de Movimientos")
     df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
     if df_hist.empty:
         st.info("Sin movimientos registrados.")
     else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
