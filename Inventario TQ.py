@@ -56,7 +56,7 @@ init_db()
 
 st.title("📦 Plataforma de Gestion de Inventarios")
 
-menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "⚙️ Sistema", "🔍 Buscar Sistema", "📜 Historial"])
+menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "➕ Agregar Sistema", "🔍 Buscar Sistema", "📜 Historial"])
 
 if menu == "🏠 Inicio":
     st.header("Panel de Control en Tiempo Real")
@@ -185,92 +185,32 @@ elif menu == "🔍 Buscar Inventario":
         else:
             st.dataframe(df.set_index('id'), use_container_width=True)
 
-elif menu == "⚙️ Agregar Sistema":
-    st.header("Gestión de Sistema")
-    tab1, tab2, tab3 = st.tabs(["➕ Agregar", "✏️ Modificar", "🗑️ Eliminar"])
-    with tab1:
-        st.subheader("Agregar Nuevo Sistema")
-        with st.form("form_sistema_agregar"):
-            c1, c2 = st.columns(2)
-            nombre = c1.text_input("Nombre del Sistema *")
-            tipo_filtro = c1.text_input("Tipo de Filtro")
-            modelo = c2.text_input("Modelo")
-            eficiencia = c2.text_input("Eficiencia")
-            c3, c4 = st.columns(2)
-            medidas = c3.text_input("Medidas")
-            cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
-            submit = st.form_submit_button("💾 Guardar Sistema")
-            if submit and nombre:
-                fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                cantidad_int = int(cantidad) if cantidad else 0
-                sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES ('{nombre}', '{tipo_filtro if tipo_filtro else ''}', '{modelo if modelo else ''}', '{eficiencia if eficiencia else ''}', '{medidas if medidas else ''}', {cantidad_int}, '{fecha_actual}')"""
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                c.execute(sql)
-                conn.commit()
-                conn.close()
-                add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
-                mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
-                st.rerun()
-            elif submit:
-                st.warning("Complete los campos obligatorios (*).")
-    with tab2:
-        st.subheader("Modificar Sistema")
-        df_sis = get_sistema()
-        if df_sis.empty:
-            st.info("No hay sistemas registrados.")
-        else:
-            opciones_sis = df_sis.apply(lambda x: f"{x['id']} - {x['nombre']}", axis=1).tolist()
-            seleccion_sis = st.selectbox("Seleccione Sistema a Modificar", opciones_sis)
-            if seleccion_sis:
-                sis_id = int(seleccion_sis.split(" - ")[0])
-                sis_item = df_sis[df_sis['id'] == sis_id].iloc[0]
-                with st.form("form_sistema_mod"):
-                    c1, c2 = st.columns(2)
-                    nombre = c1.text_input("Nombre", value=sis_item['nombre'])
-                    tipo_filtro = c1.text_input("Tipo de Filtro", value=sis_item['tipo_filtro'])
-                    modelo = c2.text_input("Modelo", value=sis_item['modelo'])
-                    eficiencia = c2.text_input("Eficiencia", value=sis_item['eficiencia'])
-                    c3, c4 = st.columns(2)
-                    medidas = c3.text_input("Medidas", value=sis_item['medidas'])
-                    cantidad = c4.number_input("Cantidad", min_value=0, value=int(sis_item['cantidad']))
-                    passwd = st.text_input("Contraseña (TQ2026)", type="password")
-                    submit = st.form_submit_button("✏️ Actualizar Sistema")
-                    if submit and passwd == "TQ2026":
-                        fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                        sql = f"""UPDATE sistema SET nombre='{nombre}', tipo_filtro='{tipo_filtro if tipo_filtro else ''}', modelo='{modelo if modelo else ''}', eficiencia='{eficiencia if eficiencia else ''}', medidas='{medidas if medidas else ''}', cantidad={int(cantidad)}, fecha_actualizacion='{fecha_actual}' WHERE id={sis_id}"""
-                        conn = sqlite3.connect(DB_FILE)
-                        c = conn.cursor()
-                        c.execute(sql)
-                        conn.commit()
-                        conn.close()
-                        add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                        mostrar_mensaje_exito("✅ Sistema actualizado exitosamente!")
-                        st.rerun()
-                    elif submit:
-                        st.error("❌ Contraseña incorrecta.")
-    with tab3:
-        st.subheader("Eliminar Sistema")
-        df_sis = get_sistema()
-        if df_sis.empty:
-            st.info("No hay sistemas.")
-        else:
-            opciones_sis = df_sis.apply(lambda x: f"{x['id']} - {x['nombre']}", axis=1).tolist()
-            seleccion_sis = st.selectbox("Seleccione Sistema a Eliminar", opciones_sis)
-            passwd = st.text_input("Contraseña (TQ2026)", type="password")
-            if st.button("🗑️ Eliminar Sistema"):
-                if passwd == "TQ2026":
-                    sis_id = int(seleccion_sis.split(" - ")[0])
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute(f"DELETE FROM sistema WHERE id={sis_id}")
-                    conn.commit()
-                    conn.close()
-                    add_to_historial("ELIMINACIÓN SISTEMA", f"ID: {sis_id}", "Admin")
-                    mostrar_mensaje_exito("✅ Sistema eliminado exitosamente!")
-                    st.rerun()
-                else:
-                    st.error("❌ Contraseña incorrecta.")
+elif menu == "➕ Agregar Sistema":
+    st.header("Agregar Nuevo Sistema")
+    with st.form("form_sistema_agregar"):
+        c1, c2 = st.columns(2)
+        nombre = c1.text_input("Nombre del Sistema *")
+        tipo_filtro = c1.text_input("Tipo de Filtro")
+        modelo = c2.text_input("Modelo")
+        eficiencia = c2.text_input("Eficiencia")
+        c3, c4 = st.columns(2)
+        medidas = c3.text_input("Medidas")
+        cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
+        submit = st.form_submit_button("💾 Guardar Sistema")
+        if submit and nombre:
+            fecha_actual = datetime.now().strftime("%Y-%m-%d")
+            cantidad_int = int(cantidad) if cantidad else 0
+            sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES ('{nombre}', '{tipo_filtro if tipo_filtro else ''}', '{modelo if modelo else ''}', '{eficiencia if eficiencia else ''}', '{medidas if medidas else ''}', {cantidad_int}, '{fecha_actual}')"""
+            conn = sqlite3.connect(DB_FILE)
+            c = conn.cursor()
+            c.execute(sql)
+            conn.commit()
+            conn.close()
+            add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
+            mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
+            st.rerun()
+        elif submit:
+            st.warning("Complete los campos obligatorios (*).")
 
 elif menu == "🔍 Buscar Sistema":
     st.header("🔍 Buscar Sistema")
