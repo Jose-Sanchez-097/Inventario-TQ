@@ -376,4 +376,9 @@ elif menu == "🔍 Buscar Sistema":
 # --- 8. HISTORIAL ---
 elif menu == "📜 Historial":
     st.header("Historial de Movimientos")
-    df_hist = run_query("
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
