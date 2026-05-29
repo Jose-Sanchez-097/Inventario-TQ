@@ -88,7 +88,6 @@ def add_to_historial(accion, descripcion, usuario):
     except:
         pass
 
-# Función para mostrar mensajes con espera de 5 segundos
 def mostrar_mensaje(mensaje, tipo='success'):
     if tipo == 'success':
         msg = st.success(mensaje)
@@ -98,9 +97,8 @@ def mostrar_mensaje(mensaje, tipo='success'):
         msg = st.warning(mensaje)
     else:
         msg = st.info(mensaje)
-    
-    time.sleep(5)  # Esperar 5 segundos
-    msg.empty()    # Limpiar el mensaje
+    time.sleep(5)
+    msg.empty()
 
 if 'sesion_iniciada' not in st.session_state:
     st.session_state.sesion_iniciada = False
@@ -257,9 +255,10 @@ def pagina_agregar_sistema():
         submit = st.form_submit_button("💾 Guardar")
         if submit and equipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
+            # CORREGIDO: Agregué cantidad_minima a la consulta
             execute_query(
-                "INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", fecha)
+                "INSERT INTO sistema (equipo, articulo, modelo, medida, eficiencia, cantidad, ubicacion, observaciones, cantidad_minima, fecha) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (equipo, articulo if articulo else "", modelo if modelo else "", medida if medida else "", eficiencia if eficiencia else "", cantidad, ubicacion if ubicacion else "", observaciones if observaciones else "", 5, fecha)
             )
             add_to_historial("AGREGAR SISTEMA", equipo, st.session_state.usuario_actual)
             mostrar_mensaje("✅ Sistema guardado!", 'success')
@@ -361,10 +360,4 @@ def main():
             pagina_modificar_sistema()
         elif menu == "🗑️ Eliminar Sistema":
             pagina_eliminar_sistema()
-        elif menu == "🔍 Buscar Sistema":
-            pagina_buscar_sistema()
-        elif menu == "📜 Historial":
-            pagina_historial()
-
-if __name__ == "__main__":
-    main()
+        elif menu == "🔍 Buscar Sistema
