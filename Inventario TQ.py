@@ -3,27 +3,61 @@ import pandas as pd
 from datetime import datetime
 import requests
 
-# Configuración de la página web
 st.set_page_config(page_title="Inventario TQ Online", layout="wide")
 st.title("📦 Control de Inventario e Historial TQ")
 
-# --- FUNCIÓN DE CARGA CON CACHÉ ---
-@st.cache_data(ttl=30)
-def obtener_datos_rapido(url):
-    return pd.read_csv(url)
+# --- LÓGICA DE DATOS ---
+@st.cache_data(ttl=60)
+def cargar_datos(url):
+    df = pd.read_csv(url)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df.dropna(how="all")
 
-# --- CONFIGURACIÓN DE SEGURIDAD ---
-CONTRASENA_CORRECTA = "TQ2026"
-URL_LECTURA_DIRECTA = "https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440"
-URL_FORM_RESPONSE = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
+# Carga inicial o desde estado
+if "df_base" not in st.session_state:
+    st.session_state.df_base = cargar_datos("https://docs.google.com/spreadsheets/d/1DnYaNa7rJTJZCIIs9GyOMxEeusL7SHoTJjjZwjbV_LI/export?format=csv&gid=1927911440")
 
-# --- LECTURA Y PROCESAMIENTO ---
-try:
-    df_raw = obtener_datos_rapido(URL_LECTURA_DIRECTA)
+# --- PROCESAMIENTO ---
+def obtener_inventario_limpio():
+    df = st.session_state.df_base.copy()
+    # Mapeo básico de ID
+    df = df.rename(columns={c: "ID" for c in df.columns if "ID" in c.upper() and len(c) < 6})
+    df = df.drop_duplicates(subset=["ID"], keep="last")
     
-    if not df_raw.empty:
-        df_raw.columns = [str(c).strip() for c in df_raw.columns]
-        df_raw = df_raw.dropna(how="all")
+    # Filtro estricto
+    df = df[(df["Tipo Insumo"].astype(str).str.upper() != "ELIMINADO") & (df["Cant. Actual"].astype(float) >= 0)]
+    return df.fillna("N/A")
+
+# --- ACCIONES DE ESCRITURA CON ACTUALIZACIÓN INSTANTÁNEA ---
+def ejecutar_accion_formulario(id_val, accion, cant_val, obs=""):
+    # Enviar a Google
+    url = "https://docs.google.com/forms/d/e/1FAIpQLScVSnm26xUibVlI8_cvzsqqLLkdLUhWfeA2z9-p-livjUlljA/formResponse"
+    # (Asegúrate de que tus keys sean correctas)
+    datos = {"entry.939486531": str(id_val), "entry.209965346": str(cant_val), "entry.257529099": obs}
+    
+    if requests.post(url, data=datos).status_code == 200:
+        # ACTUALIZACIÓN INSTANTÁNEA EN MEMORIA
+        # Esto evita esperar a que el CSV de Google se refresque
+        st.session_state.df_base = st.session_state.df_base.append(
+            {"ID": id_val, "Tipo Insumo": accion, "Cant. Actual": cant_val}, ignore_index=True
+        )
+        return True
+    return False
+
+# --- UI (Fragmento de la Zona de Eliminación) ---
+with st.expander("🗑️ Zona de Eliminación"):
+    id_del = st.number_input("ID a borrar", min_value=1, step=1)
+    clave = st.text_input("Contraseña", type="password")
+    if st.button("Confirmar Eliminación"):
+        if clave == "TQ2026":
+            if ejecutar_accion_formulario(id_del, "ELIMINADO", -1, "Ítem purgado"):
+                st.success("Eliminado correctamente.")
+                st.rerun()
+        else:
+            st.error("Contraseña incorrecta")
+
+df_db = obtener_inventario_limpio()
+# ... resto de tu código de visualización ...
         
         # Consolidación: tomamos el último registro de cada ID
         df_db = df_raw.drop_duplicates(subset=["ID"], keep="last").copy()
