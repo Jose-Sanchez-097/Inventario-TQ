@@ -254,4 +254,11 @@ elif menu == "🔍 Buscar Sistema":
             resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
             if not resultado_sis.empty:
                 st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                st.dataframe(resultado_sis.set
+                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda_sis}'")
+        else:
+            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
+            st.dataframe(df_sis.set_index('id'), use_container_width=True)
+
+elif menu ==
