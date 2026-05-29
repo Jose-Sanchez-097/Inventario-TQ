@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import hashlib
-from io import BytesIO
+import os
 
 st.set_page_config(page_title="📦 Gestión de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
@@ -19,70 +19,86 @@ div[data-testid="stMetric"]{background:linear-gradient(135deg,#667eea,#764ba2);p
 """, unsafe_allow_html=True)
 
 def init_db():
+    # Eliminar base de datos existente
+    if os.path.exists(DB_FILE):
+        os.remove(DB_FILE)
+    
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Tabla inventario
-    c.execute('''CREATE TABLE IF NOT EXISTS inventario (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT,
-        eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0,
-        cantidad_minima INTEGER DEFAULT 5, proveedor TEXT, costo_unitario REAL DEFAULT 0,
-        realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT, fecha_creacion TEXT)''')
+    # Tabla inventario - estructura exacta
+    c.execute('''CREATE TABLE inventario (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        tipo_insumo TEXT NOT NULL, 
+        medidas TEXT,
+        eficiencia TEXT, 
+        modelo TEXT, 
+        equipo TEXT, 
+        cantidad INTEGER DEFAULT 0,
+        cantidad_minima INTEGER DEFAULT 5, 
+        proveedor TEXT, 
+        costo_unitario REAL DEFAULT 0,
+        realizado_por TEXT, 
+        observaciones TEXT, 
+        fecha_actualizacion TEXT, 
+        fecha_creacion TEXT)''')
     
     # Tabla sistema
-    c.execute('''CREATE TABLE IF NOT EXISTS sistema (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT,
-        modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0,
-        cantidad_minima INTEGER DEFAULT 5, costo_unitario REAL DEFAULT 0,
-        fecha_actualizacion TEXT, fecha_creacion TEXT)''')
+    c.execute('''CREATE TABLE sistema (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        nombre TEXT NOT NULL, 
+        tipo_filtro TEXT,
+        modelo TEXT, 
+        eficiencia TEXT, 
+        medidas TEXT, 
+        cantidad INTEGER DEFAULT 0,
+        cantidad_minima INTEGER DEFAULT 5, 
+        costo_unitario REAL DEFAULT 0,
+        fecha_actualizacion TEXT, 
+        fecha_creacion TEXT)''')
     
     # Tabla historial
-    c.execute('''CREATE TABLE IF NOT EXISTS historial (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
+    c.execute('''CREATE TABLE historial (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        fecha TEXT, 
+        accion TEXT, 
+        descripcion TEXT, 
+        usuario TEXT)''')
     
     # Tabla usuarios
-    c.execute('''CREATE TABLE IF NOT EXISTS usuarios (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL, rol TEXT DEFAULT 'usuario', fecha_creacion TEXT)''')
+    c.execute('''CREATE TABLE usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL, 
+        rol TEXT DEFAULT 'usuario', 
+        fecha_creacion TEXT)''')
     
     # Tabla proveedores
-    c.execute('''CREATE TABLE IF NOT EXISTS proveedores (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, contacto TEXT,
-        telefono TEXT, email TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
+    c.execute('''CREATE TABLE proveedores (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        nombre TEXT NOT NULL, 
+        contacto TEXT,
+        telefono TEXT, 
+        email TEXT, 
+        observaciones TEXT, 
+        fecha_actualizacion TEXT)''')
     
     # Tabla ordenes
-    c.execute('''CREATE TABLE IF NOT EXISTS ordenes_pedido (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, orden_numero TEXT UNIQUE NOT NULL,
-        insumo_id INTEGER, cantidad_solicitada INTEGER, proveedor TEXT, estado TEXT DEFAULT 'pendiente',
-        fecha_solicitud TEXT, observaciones TEXT, usuario_solicita TEXT)''')
-    
-    # Agregar columnas si no existen (migración)
-    try:
-        c.execute("SELECT costo_unitario FROM inventario LIMIT 1")
-    except:
-        c.execute("ALTER TABLE inventario ADD COLUMN costo_unitario REAL DEFAULT 0")
-    
-    try:
-        c.execute("SELECT cantidad_minima FROM inventario LIMIT 1")
-    except:
-        c.execute("ALTER TABLE inventario ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
-    
-    try:
-        c.execute("SELECT costo_unitario FROM sistema LIMIT 1")
-    except:
-        c.execute("ALTER TABLE sistema ADD COLUMN costo_unitario REAL DEFAULT 0")
-    
-    try:
-        c.execute("SELECT cantidad_minima FROM sistema LIMIT 1")
-    except:
-        c.execute("ALTER TABLE sistema ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
+    c.execute('''CREATE TABLE ordenes_pedido (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        orden_numero TEXT UNIQUE NOT NULL,
+        insumo_id INTEGER, 
+        cantidad_solicitada INTEGER, 
+        proveedor TEXT, 
+        estado TEXT DEFAULT 'pendiente',
+        fecha_solicitud TEXT, 
+        observaciones TEXT, 
+        usuario_solicita TEXT)''')
     
     # Admin por defecto
-    c.execute("SELECT id FROM usuarios WHERE username = 'admin'")
-    if not c.fetchone():
-        password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
-        c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
-                 ('admin', password_admin, 'administrador', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    password_admin = hashlib.sha256('TQ2026'.encode()).hexdigest()
+    c.execute("INSERT INTO usuarios (username, password, rol, fecha_creacion) VALUES (?, ?, ?, ?)",
+             ('admin', password_admin, 'administrador', datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     conn.commit()
     conn.close()
@@ -173,11 +189,11 @@ def mostrar_dashboard():
     col2.metric("⚙️ Sistemas", len(df_sis))
     col3.metric("🚚 Proveedores", len(df_prov))
     
-    # Calcular valor total de forma segura
+    # Calcular valor total
     valor = 0
-    if not df.empty and 'costo_unitario' in df.columns:
+    if not df.empty:
         valor += (df['cantidad'] * df['costo_unitario']).sum()
-    if not df_sis.empty and 'costo_unitario' in df_sis.columns:
+    if not df_sis.empty:
         valor += (df_sis['cantidad'] * df_sis['costo_unitario']).sum()
     
     col4.metric("💰 Valor", f"${valor:,.0f}")
@@ -188,31 +204,27 @@ def mostrar_dashboard():
     with c1:
         st.subheader("⚠️ Stock Bajo - Insumos")
         if not df.empty:
-            if 'cantidad_minima' in df.columns:
-                stock = df[df['cantidad'] < df['cantidad_minima']]
-            else:
-                stock = df[df['cantidad'] < 5]
+            stock = df[df['cantidad'] < df['cantidad_minima']]
             if not stock.empty:
                 st.error(f"¡{len(stock)} críticos!")
-                st.dataframe(stock[['tipo_insumo','modelo','cantidad','proveedor']])
+                # Seleccionar solo columnas que existen
+                cols = [c for c in ['tipo_insumo','modelo','cantidad','proveedor'] if c in stock.columns]
+                st.dataframe(stock[cols])
             else:
                 st.success("✅ OK")
     with c2:
         st.subheader("⚠️ Stock Bajo - Sistemas")
         if not df_sis.empty:
-            if 'cantidad_minima' in df_sis.columns:
-                stock = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
-            else:
-                stock = df_sis[df_sis['cantidad'] < 5]
+            stock = df_sis[df_sis['cantidad'] < df_sis['cantidad_minima']]
             if not stock.empty:
                 st.warning(f"¡{len(stock)} críticos!")
-                st.dataframe(stock[['nombre','modelo','cantidad']])
+                cols = [c for c in ['nombre','modelo','cantidad'] if c in stock.columns]
+                st.dataframe(stock[cols])
             else:
                 st.success("✅ OK")
     
     st.markdown("---")
     st.subheader("📋 Inventario")
-    df = get_inventario()
     if not df.empty:
         st.dataframe(df)
 
@@ -234,7 +246,7 @@ def pagina_agregar_insumo():
             costo = st.number_input("Costo", min_value=0.0, step=0.01)
         with c4:
             observaciones = st.text_area("Observaciones")
-        submit = st.form_submit_button("💾 Guardar")
+        submit = st.form_submit_button("💾 Guardar", use_container_width=True)
         if submit and tipo:
             fecha = datetime.now().strftime("%Y-%m-%d")
             execute_query('''INSERT INTO inventario 
@@ -244,6 +256,8 @@ def pagina_agregar_insumo():
             add_to_historial("AGREGAR", f"Insumo: {tipo}", st.session_state.usuario_actual)
             mostrar_mensaje("✅ OK")
             st.rerun()
+        elif submit:
+            st.warning("Completar tipo requerido")
 
 def pagina_modificar_insumo():
     st.header("✏️ Modificar Insumo")
@@ -260,11 +274,11 @@ def pagina_modificar_insumo():
                 c1, c2 = st.columns(2)
                 with c1:
                     tipo = st.text_input("Tipo", value=item['tipo_insumo'])
-                    modelo = st.text_input("Modelo", value=item['modelo'])
+                    modelo = st.text_input("Modelo", value=str(item['modelo']) if pd.notna(item['modelo']) else '')
                 with c2:
                     cantidad = st.number_input("Cantidad", min_value=0, value=int(item['cantidad']))
-                    cantidad_min = st.number_input("Stock Mín", min_value=0, value=int(item.get('cantidad_minima', 5)))
-                submit = st.form_submit_button("✏️ Actualizar")
+                    cantidad_min = st.number_input("Stock Mín", min_value=0, value=int(item['cantidad_minima']))
+                submit = st.form_submit_button("✏️ Actualizar", use_container_width=True)
                 if submit:
                     fecha = datetime.now().strftime("%Y-%m-%d")
                     execute_query('''UPDATE inventario SET tipo_insumo=?,modelo=?,cantidad=?,cantidad_minima=?,fecha_actualizacion=? WHERE id=?''',
@@ -298,15 +312,19 @@ def pagina_buscar():
     if df.empty:
         st.info("Sin datos")
     else:
-        campo = st.selectbox("Campo", ["tipo_insumo","modelo","equipo","proveedor"])
+        # Obtener solo columnas que existen
+        columnas = [c for c in df.columns if c not in ['fecha_actualizacion', 'fecha_creacion']]
+        campo = st.selectbox("Campo", columnas)
         texto = st.text_input("Buscar", placeholder="...")
         if texto:
-            res = df[df[campo].str.contains(texto, case=False, na=False)]
+            res = df[df[campo].astype(str).str.contains(texto, case=False, na=False)]
             if not res.empty:
                 st.success(f"✅ {len(res)} resultados")
                 st.dataframe(res)
             else:
                 st.warning("Sin resultados")
+        else:
+            st.dataframe(df)
 
 def pagina_sistema():
     st.header("⚙️ Agregar Sistema")
@@ -314,7 +332,7 @@ def pagina_sistema():
         nombre = st.text_input("Nombre *")
         modelo = st.text_input("Modelo")
         cantidad = st.number_input("Cantidad", min_value=0, step=1, value=0)
-        submit = st.form_submit_button("💾 Guardar")
+        submit = st.form_submit_button("💾 Guardar", use_container_width=True)
         if submit and nombre:
             fecha = datetime.now().strftime("%Y-%m-%d")
             execute_query('''INSERT INTO sistema (nombre,modelo,cantidad,fecha_actualizacion,fecha_creacion) VALUES (?,?,?,?,?)''',
