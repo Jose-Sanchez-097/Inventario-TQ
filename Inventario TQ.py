@@ -420,7 +420,7 @@ def pagina_historial():
     else:
         st.dataframe(df)
 
-==================== MAIN ====================
+# ==================== MAIN ====================
 def main():
     if not st.session_state.sesion_iniciada:
         pagina_login()
