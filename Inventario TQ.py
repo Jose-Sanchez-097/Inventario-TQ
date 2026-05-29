@@ -85,8 +85,9 @@ elif menu == "➕ Agregar Insumo":
         if submit and tipo:
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             cantidad_int = int(cantidad) if cantidad else 0
-            execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                        (tipo, medidas, eficiencia, modelo, equipo, cantidad_int, realizado_por, observaciones, fecha_actual))
+            # CORREGIDO - ahora incluye todos los 10 campos
+            execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            (tipo, medidas if medidas else "", eficiencia if eficiencia else "", modelo if modelo else "", equipo if equipo else "", cantidad_int, realizado_por if realizado_por else "", observaciones if observaciones else "", fecha_actual))
             add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por)
             st.success("✅ Insumo agregado exitosamente!")
         elif submit:
