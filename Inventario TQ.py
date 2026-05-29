@@ -212,14 +212,13 @@ elif menu == "🔍 Buscar Inventario":
         
         if texto_busqueda:
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
-            
             if not resultado.empty:
                 st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
                 st.dataframe(resultado.set_index('id'), use_container_width=True)
             else:
-                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}' en el campo '{nombres_campos[campo_busqueda]}'")
+                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}'")
         else:
-            st.info("👆 Ingrese un valor en el campo de texto para buscar")
+            st.info("👆 Ingrese un valor para buscar o leave vacío para ver todo")
             st.dataframe(df.set_index('id'), use_container_width=True)
 
 elif menu == "⚙️ Sistema":
@@ -301,4 +300,9 @@ elif menu == "⚙️ Sistema":
                     sis_id = int(seleccion_sis.split(" - ")[0])
                     sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
                     execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
-                    add
+                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
+                    st.success("✅ Sistema eliminado.")
+                else:
+                    st.error("❌ Contraseña incorrecta.")
+
+elif menu == "🔍
