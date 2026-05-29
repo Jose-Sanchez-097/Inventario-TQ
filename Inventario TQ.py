@@ -118,7 +118,7 @@ elif menu == "➕ Agregar Insumo":
                 equipo_val = equipo if equipo else ""
                 realizado_por_val = realizado_por if realizado_por else ""
                 observaciones_val = observaciones if observaciones else ""
-                execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
                             (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, realizado_por_val, observaciones_val, fecha_actual))
                 add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por_val)
                 st.success("✅ Insumo agregado exitosamente!")
@@ -184,16 +184,47 @@ elif menu == "🗑️ Eliminar Insumo":
                 st.error("❌ Contraseña incorrecta.")
 
 elif menu == "🔍 Buscar Insumo":
-    st.header("Buscar Insumo")
+    st.header("🔍 Buscar Insumo en Inventario")
     df = get_inventario()
     if df.empty:
         st.info("No hay insumos registrados.")
     else:
-        criterio = st.text_input("Ingrese texto a buscar (Tipo, Modelo, Equipo, etc.)")
-        if criterio:
-            resultado = df[df['tipo_insumo'].str.contains(criterio, case=False, na=False) | df['modelo'].str.contains(criterio, case=False, na=False) | df['equipo'].str.contains(criterio, case=False, na=False)]
-            st.dataframe(resultado.set_index('id'), use_container_width=True)
+        # Selector de campo para busqueda especifica
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.markdown("### 📌 Filtrar por:")
+            campo_busqueda = st.selectbox(
+                "Seleccione campo de busqueda:",
+                ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"]
+            )
+            # Mostrar traductor de nombres de campos
+            nombres_campos = {
+                "tipo_insumo": "Tipo de Insumo",
+                "modelo": "Modelo",
+                "equipo": "Equipo",
+                "medidas": "Medidas",
+                "eficiencia": "Eficiencia",
+                "realizado_por": "Realizado Por"
+            }
+            st.caption(f"Buscando por: **{nombres_campos[campo_busqueda]}**")
+        
+        with col2:
+            st.markdown("### 🔎 Ingrese texto a buscar:")
+            texto_busqueda = st.text_input(f"Buscar por {nombres_campos[campo_busqueda]}", placeholder=f"Ingrese valor para {nombres_campos[campo_busqueda]}...")
+        
+        # Logica de filtrado
+        if texto_busqueda:
+            # Filtrar el DataFrame segun el campo seleccionado
+            resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
+            
+            if not resultado.empty:
+                st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
+                st.dataframe(resultado.set_index('id'), use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}' en el campo '{nombres_campos[campo_busqueda]}'")
         else:
+            # Mostrar inventario completo si no hay busqueda
+            st.info("👆 Ingrese un valor en el campo de texto para buscar")
             st.dataframe(df.set_index('id'), use_container_width=True)
 
 elif menu == "⚙️ Sistema":
@@ -272,31 +303,4 @@ elif menu == "⚙️ Sistema":
             passwd = st.text_input("Contraseña (TQ2026)", type="password")
             if st.button("🗑️ Eliminar Sistema"):
                 if passwd == "TQ2026":
-                    sis_id = int(seleccion_sis.split(" - ")[0])
-                    sis_nombre = df_sis[df_sis['id'] == sis_id]['nombre'].values[0]
-                    execute_query("DELETE FROM sistema WHERE id=?", (sis_id,))
-                    add_to_historial("ELIMINACIÓN SISTEMA", f"Sistema: {sis_nombre}", "Admin")
-                    st.success("✅ Sistema eliminado.")
-                else:
-                    st.error("❌ Contraseña incorrecta.")
-
-elif menu == "🔍 Buscar Sistema":
-    st.header("Buscar Sistema")
-    df_sis = get_sistema()
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        criterio = st.text_input("Ingrese texto a buscar (Nombre, Tipo de Filtro, Modelo)")
-        if criterio:
-            resultado = df_sis[df_sis['nombre'].str.contains(criterio, case=False, na=False) | df_sis['tipo_filtro'].str.contains(criterio, case=False, na=False) | df_sis['modelo'].str.contains(criterio, case=False, na=False)]
-            st.dataframe(resultado.set_index('id'), use_container_width=True)
-        else:
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-elif menu == "📜 Historial":
-    st.header("Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+                    sis_id = int(seleccion_s
