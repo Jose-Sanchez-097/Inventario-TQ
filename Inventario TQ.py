@@ -3,10 +3,8 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# Configuracion de la pagina
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
-# CSS dinamico para tema oscuro/claro
 css_themes = """<style>
 @media (prefers-color-scheme: dark) {
 .stApp { background-color: #0e1117; color: #fafafa; }
@@ -30,7 +28,6 @@ h1, h2, h3, h4, h5, h6 { color: #262730; }
 </style>"""
 st.markdown(css_themes, unsafe_allow_html=True)
 
-# Base de datos SQLite
 DB_FILE = 'inventario.db'
 
 def init_db():
@@ -101,7 +98,7 @@ elif menu == "➕ Agregar Insumo":
         tipo = c1.text_input("Tipo de Insumo *")
         modelo = c1.text_input("Modelo")
         medidas = c2.text_input("Medidas")
-        eficiencia = c2.text_input("Eficiencia (Digitada por Usuario)")
+        eficiencia = c2.text_input("Eficiencia")
         c3, c4 = st.columns(2)
         equipo = c3.text_input("Equipo")
         cantidad = c4.number_input("Cantidad Actual *", min_value=0, step=1)
@@ -119,8 +116,8 @@ elif menu == "➕ Agregar Insumo":
                 realizado_por_val = realizado_por if realizado_por else ""
                 observaciones_val = observaciones if observaciones else ""
                 execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                            (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, realizado_por_val, observaciones_val, fecha_actual))
-                add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por_val)
+                            (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, realizzzo_por_val, observaciones_val, fecha_actual))
+                add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizzo_por_val)
                 st.success("✅ Insumo agregado exitosamente!")
             else:
                 st.warning("Por favor complete los campos obligatorios (*).")
@@ -192,24 +189,12 @@ elif menu == "🔍 Buscar Inventario":
         col1, col2 = st.columns([1, 2])
         with col1:
             st.markdown("### 📌 Filtrar por:")
-            campo_busqueda = st.selectbox(
-                "Seleccione campo de búsqueda:",
-                ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"]
-            )
-            nombres_campos = {
-                "tipo_insumo": "Tipo de Insumo",
-                "modelo": "Modelo",
-                "equipo": "Equipo",
-                "medidas": "Medidas",
-                "eficiencia": "Eficiencia",
-                "realizado_por": "Realizado Por"
-            }
+            campo_busqueda = st.selectbox("Seleccione campo de búsqueda:", ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"])
+            nombres_campos = {"tipo_insumo": "Tipo de Insumo", "modelo": "Modelo", "equipo": "Equipo", "medidas": "Medidas", "eficiencia": "Eficiencia", "realizado_por": "Realizado Por"}
             st.caption(f"Buscando por: **{nombres_campos[campo_busqueda]}**")
-        
         with col2:
             st.markdown("### 🔎 Ingrese texto a buscar:")
             texto_busqueda = st.text_input(f"Buscar por {nombres_campos[campo_busqueda]}", placeholder=f"Ingrese valor para {nombres_campos[campo_busqueda]}...")
-        
         if texto_busqueda:
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
             if not resultado.empty:
@@ -218,7 +203,7 @@ elif menu == "🔍 Buscar Inventario":
             else:
                 st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}'")
         else:
-            st.info("👆 Ingrese un valor para buscar o leave vacío para ver todo")
+            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
             st.dataframe(df.set_index('id'), use_container_width=True)
 
 elif menu == "⚙️ Sistema":
@@ -305,4 +290,6 @@ elif menu == "⚙️ Sistema":
                 else:
                     st.error("❌ Contraseña incorrecta.")
 
-elif menu == "🔍
+elif menu == "🔍 Buscar Sistema":
+    st.header("🔍 Buscar Sistema")
+    df
