@@ -338,4 +338,4 @@ elif menu == "⚙️ Sistema":
                     medidas = c3.text_input("Medidas", value=sis_item['medidas'])
                     cantidad = c4.number_input("Cantidad", min_value=0, value=int(sis_item['cantidad']))
                     
-                    passwd = st.text_input("Contrase
+                    passwd = st.text_input("Contrase)
