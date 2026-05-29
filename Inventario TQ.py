@@ -6,25 +6,8 @@ from datetime import datetime
 st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
 
 css_themes = """<style>
-@media (prefers-color-scheme: dark) {
-.stApp { background-color: #0e1117; color: #fafafa; }
-.stSidebar { background-color: #262730; }
-.stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; }
-.stButton > button { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; }
-.stButton > button:hover { background-color: #4a4a4a; }
-.stDataFrame { background-color: #262730; }
-div[data-testid="stMetricValue"] { color: #fafafa; }
-h1, h2, h3, h4, h5, h6 { color: #fafafa; }
-}
-@media (prefers-color-scheme: light) {
-.stApp { background-color: #ffffff; color: #262730; }
-.stSidebar { background-color: #f0f2f6; }
-.stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #ffffff; color: #262730; border: 1px solid #e0e0e0; }
-.stButton > button { background-color: #ff4b4b; color: #ffffff; border: none; }
-.stButton > button:hover { background-color: #ff2b2b; }
-div[data-testid="stMetricValue"] { color: #262730; }
-h1, h2, h3, h4, h5, h6 { color: #262730; }
-}
+@media (prefers-color-scheme: dark) {.stApp { background-color: #0e1117; color: #fafafa; } .stSidebar { background-color: #262730; } .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; } .stButton > button { background-color: #262730; color: #fafafa; border: 1px solid #4a4a4a; } .stButton > button:hover { background-color: #4a4a4a; } .stDataFrame { background-color: #262730; } div[data-testid="stMetricValue"] { color: #fafafa; } h1, h2, h3, h4, h5, h6 { color: #fafafa; }}
+@media (prefers-color-scheme: light) {.stApp { background-color: #ffffff; color: #262730; } .stSidebar { background-color: #f0f2f6; } .stTextInput > div > div > input, .stTextArea > div > div > textarea, .stSelectbox > div > div > div { background-color: #ffffff; color: #262730; border: 1px solid #e0e0e0; } .stButton > button { background-color: #ff4b4b; color: #ffffff; border: none; } .stButton > button:hover { background-color: #ff2b2b; } div[data-testid="stMetricValue"] { color: #262730; } h1, h2, h3, h4, h5, h6 { color: #262730; }}
 </style>"""
 st.markdown(css_themes, unsafe_allow_html=True)
 
@@ -70,8 +53,7 @@ menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insum
 
 if menu == "🏠 Inicio":
     st.header("Panel de Control en Tiempo Real")
-    df = get_inventario()
-    df_sis = get_sistema()
+    df, df_sis = get_inventario(), get_sistema()
     col1, col2 = st.columns(2)
     col1.metric("Total Insumos", len(df))
     col2.metric("Total Sistemas", len(df_sis))
@@ -105,22 +87,15 @@ elif menu == "➕ Agregar Insumo":
         realizado_por = st.text_input("Realizado por")
         observaciones = st.text_area("Observaciones")
         submit = st.form_submit_button("💾 Guardar Insumo")
-        if submit:
-            if tipo:
-                fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                cantidad_int = int(cantidad) if cantidad else 0
-                modelo_val = modelo if modelo else ""
-                medidas_val = medidas if medidas else ""
-                eficiencia_val = eficiencia if eficiencia else ""
-                equipo_val = equipo if equipo else ""
-                realizado_por_val = realizado_por if realizado_por else ""
-                observaciones_val = observaciones if observaciones else ""
-                execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-                            (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, realizzzo_por_val, observaciones_val, fecha_actual))
-                add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizzo_por_val)
-                st.success("✅ Insumo agregado exitosamente!")
-            else:
-                st.warning("Por favor complete los campos obligatorios (*).")
+        if submit and tipo:
+            fecha_actual = datetime.now().strftime("%Y-%m-%d")
+            cantidad_int = int(cantidad) if cantidad else 0
+            execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                        (tipo, medidas, eficiencia, modelo, equipo, cantidad_int, realizado_por, observaciones, fecha_actual))
+            add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por)
+            st.success("✅ Insumo agregado exitosamente!")
+        elif submit:
+            st.warning("Por favor complete los campos obligatorios (*).")
 
 elif menu == "✏️ Modificar Insumo":
     st.header("Modificar Insumo Existente")
@@ -145,21 +120,14 @@ elif menu == "✏️ Modificar Insumo":
                 observaciones = st.text_area("Observaciones", value=item['observaciones'])
                 passwd = st.text_input("Contraseña (Requerido para modificar)", type="password")
                 submit = st.form_submit_button("✏️ Actualizar")
-                if submit:
-                    if passwd == "TQ2026":
-                        fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                        cantidad_int = int(cantidad)
-                        modelo_val = modelo if modelo else ""
-                        medidas_val = medidas if medidas else ""
-                        eficiencia_val = eficiencia if eficiencia else ""
-                        equipo_val = equipo if equipo else ""
-                        observaciones_val = observaciones if observaciones else ""
-                        execute_query("UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
-                                    (tipo, medidas_val, eficiencia_val, modelo_val, equipo_val, cantidad_int, observaciones_val, fecha_actual, item_id))
-                        add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
-                        st.success("✅ Insumo actualizado.")
-                    else:
-                        st.error("❌ Contraseña incorrecta. Use TQ2026")
+                if submit and passwd == "TQ2026":
+                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
+                    execute_query("UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
+                                (tipo, medidas, eficiencia, modelo, equipo, int(cantidad), observaciones, fecha_actual, item_id))
+                    add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
+                    st.success("✅ Insumo actualizado.")
+                elif submit:
+                    st.error("❌ Contraseña incorrecta. Use TQ2026")
 
 elif menu == "🗑️ Eliminar Insumo":
     st.header("Eliminar Insumo")
@@ -188,12 +156,9 @@ elif menu == "🔍 Buscar Inventario":
     else:
         col1, col2 = st.columns([1, 2])
         with col1:
-            st.markdown("### 📌 Filtrar por:")
             campo_busqueda = st.selectbox("Seleccione campo de búsqueda:", ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"])
             nombres_campos = {"tipo_insumo": "Tipo de Insumo", "modelo": "Modelo", "equipo": "Equipo", "medidas": "Medidas", "eficiencia": "Eficiencia", "realizado_por": "Realizado Por"}
-            st.caption(f"Buscando por: **{nombres_campos[campo_busqueda]}**")
         with col2:
-            st.markdown("### 🔎 Ingrese texto a buscar:")
             texto_busqueda = st.text_input(f"Buscar por {nombres_campos[campo_busqueda]}", placeholder=f"Ingrese valor para {nombres_campos[campo_busqueda]}...")
         if texto_busqueda:
             resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
@@ -221,20 +186,14 @@ elif menu == "⚙️ Sistema":
             medidas = c3.text_input("Medidas")
             cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
             submit = st.form_submit_button("💾 Guardar Sistema")
-            if submit:
-                if nombre:
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    cantidad_int = int(cantidad) if cantidad else 0
-                    tipo_filtro_val = tipo_filtro if tipo_filtro else ""
-                    modelo_val = modelo if modelo else ""
-                    eficiencia_val = eficiencia if eficiencia else ""
-                    medidas_val = medidas if medidas else ""
-                    execute_query("INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                                (nombre, tipo_filtro_val, modelo_val, eficiencia_val, medidas_val, cantidad_int, fecha_actual))
-                    add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
-                    st.success("✅ Sistema agregado.")
-                else:
-                    st.warning("Complete los campos obligatorios (*).")
+            if submit and nombre:
+                fecha_actual = datetime.now().strftime("%Y-%m-%d")
+                execute_query("INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                            (nombre, tipo_filtro, modelo, eficiencia, medidas, int(cantidad) if cantidad else 0, fecha_actual))
+                add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
+                st.success("✅ Sistema agregado.")
+            elif submit:
+                st.warning("Complete los campos obligatorios (*).")
     with tab2:
         st.subheader("Modificar Sistema")
         df_sis = get_sistema()
@@ -257,20 +216,14 @@ elif menu == "⚙️ Sistema":
                     cantidad = c4.number_input("Cantidad", min_value=0, value=int(sis_item['cantidad']))
                     passwd = st.text_input("Contraseña (TQ2026)", type="password")
                     submit = st.form_submit_button("✏️ Actualizar Sistema")
-                    if submit:
-                        if passwd == "TQ2026":
-                            fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                            cantidad_int = int(cantidad)
-                            tipo_filtro_val = tipo_filtro if tipo_filtro else ""
-                            modelo_val = modelo if modelo else ""
-                            eficiencia_val = eficiencia if eficiencia else ""
-                            medidas_val = medidas if medidas else ""
-                            execute_query("UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
-                                        (nombre, tipo_filtro_val, modelo_val, eficiencia_val, medidas_val, cantidad_int, fecha_actual, sis_id))
-                            add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
-                            st.success("✅ Sistema actualizado.")
-                        else:
-                            st.error("❌ Contraseña incorrecta.")
+                    if submit and passwd == "TQ2026":
+                        fecha_actual = datetime.now().strftime("%Y-%m-%d")
+                        execute_query("UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
+                                    (nombre, tipo_filtro, modelo, eficiencia, medidas, int(cantidad), fecha_actual, sis_id))
+                        add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
+                        st.success("✅ Sistema actualizado.")
+                    elif submit:
+                        st.error("❌ Contraseña incorrecta.")
     with tab3:
         st.subheader("Eliminar Sistema")
         df_sis = get_sistema()
@@ -292,4 +245,23 @@ elif menu == "⚙️ Sistema":
 
 elif menu == "🔍 Buscar Sistema":
     st.header("🔍 Buscar Sistema")
-    df
+    df_sis = get_sistema()
+    if df_sis.empty:
+        st.info("No hay sistemas registrados.")
+    else:
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
+            nombres_campos_sis = {"nombre": "Nombre del Sistema", "tipo_filtro": "Tipo de Filtro", "modelo": "Modelo", "eficiencia": "Eficiencia", "medidas": "Medidas"}
+        with col2:
+            texto_busqueda_sis = st.text_input(f"Buscar por {nombres_campos_sis[campo_busqueda_sis]}", placeholder=f"Ingrese valor para {nombres_campos_sis[campo_busqueda_sis]}...")
+        if texto_busqueda_sis:
+            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
+            if not resultado_sis.empty:
+                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
+                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
+            else:
+                st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda_sis}'")
+        else:
+            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
+            st.dataframe(df_s
