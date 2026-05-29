@@ -85,10 +85,19 @@ elif menu == "➕ Agregar Insumo":
         if submit and tipo:
             fecha_actual = datetime.now().strftime("%Y-%m-%d")
             cantidad_int = int(cantidad) if cantidad else 0
-            # CORREGIDO - ahora incluye todos los 10 campos
-            execute_query("INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
-            (tipo, medidas if medidas else "", eficiencia if eficiencia else "", modelo if modelo else "", equipo if equipo else "", cantidad_int, realizado_por if realizado_por else "", observaciones if observaciones else "", fecha_actual))
-            add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por)
+            execute_query(
+                "INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                (tipo, 
+                 medidas if medidas else "", 
+                 eficiencia if eficiencia else "", 
+                 modelo if modelo else "", 
+                 equipo if equipo else "", 
+                 cantidad_int, 
+                 realizado_por if realizado_por else "", 
+                 observaciones if observaciones else "", 
+                 fecha_actual)
+            )
+            add_to_historial("ALTA", f"Insumo: {tipo} (Cant: {cantidad_int})", realizado_por if realizado_por else "Usuario")
             st.success("✅ Insumo agregado exitosamente!")
         elif submit:
             st.warning("Por favor complete los campos obligatorios (*).")
@@ -118,8 +127,18 @@ elif menu == "✏️ Modificar Insumo":
                 submit = st.form_submit_button("✏️ Actualizar")
                 if submit and passwd == "TQ2026":
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    execute_query("UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
-                                (tipo, medidas, eficiencia, modelo, equipo, int(cantidad), observaciones, fecha_actual, item_id))
+                    execute_query(
+                        "UPDATE inventario SET tipo_insumo=?, medidas=?, eficiencia=?, modelo=?, equipo=?, cantidad=?, observaciones=?, fecha_actualizacion=? WHERE id=?", 
+                        (tipo, 
+                         medidas if medidas else "", 
+                         eficiencia if eficiencia else "", 
+                         modelo if modelo else "", 
+                         equipo if equipo else "", 
+                         int(cantidad), 
+                         observaciones if observaciones else "", 
+                         fecha_actual, 
+                         item_id)
+                    )
                     add_to_historial("MODIFICACIÓN", f"ID: {item_id} - {tipo}", "Usuario Admin")
                     st.success("✅ Insumo actualizado.")
                 elif submit:
@@ -184,8 +203,16 @@ elif menu == "⚙️ Sistema":
             submit = st.form_submit_button("💾 Guardar Sistema")
             if submit and nombre:
                 fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                execute_query("INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                            (nombre, tipo_filtro, modelo, eficiencia, medidas, int(cantidad) if cantidad else 0, fecha_actual))
+                execute_query(
+                    "INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                    (nombre, 
+                     tipo_filtro if tipo_filtro else "", 
+                     modelo if modelo else "", 
+                     eficiencia if eficiencia else "", 
+                     medidas if medidas else "", 
+                     int(cantidad) if cantidad else 0, 
+                     fecha_actual)
+                )
                 add_to_historial("ALTA SISTEMA", f"Sistema: {nombre}", "Usuario")
                 st.success("✅ Sistema agregado.")
             elif submit:
@@ -214,8 +241,17 @@ elif menu == "⚙️ Sistema":
                     submit = st.form_submit_button("✏️ Actualizar Sistema")
                     if submit and passwd == "TQ2026":
                         fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                        execute_query("UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
-                                    (nombre, tipo_filtro, modelo, eficiencia, medidas, int(cantidad), fecha_actual, sis_id))
+                        execute_query(
+                            "UPDATE sistema SET nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, fecha_actualizacion=? WHERE id=?", 
+                            (nombre, 
+                             tipo_filtro if tipo_filtro else "", 
+                             modelo if modelo else "", 
+                             eficiencia if eficiencia else "", 
+                             medidas if medidas else "", 
+                             int(cantidad), 
+                             fecha_actual, 
+                             sis_id)
+                        )
                         add_to_historial("MODIFICACIÓN SISTEMA", f"ID: {sis_id} - {nombre}", "Admin")
                         st.success("✅ Sistema actualizado.")
                     elif submit:
