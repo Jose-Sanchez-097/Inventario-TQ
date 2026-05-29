@@ -163,7 +163,7 @@ elif menu == "🔍 Buscar Inventario":
             else:
                 st.warning(f"⚠️ No se encontraron resultados para '{texto_busqueda}'")
         else:
-            st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
+            st.info("👆 Ingrese un valor para buscar o deixe vacío para ver todo")
             st.dataframe(df.set_index('id'), use_container_width=True)
 
 elif menu == "⚙️ Sistema":
@@ -261,4 +261,10 @@ elif menu == "🔍 Buscar Sistema":
             st.info("👆 Ingrese un valor para buscar o deje vacío para ver todo")
             st.dataframe(df_sis.set_index('id'), use_container_width=True)
 
-elif menu ==
+elif menu == "📜 Historial":
+    st.header("📜 Historial de Movimientos")
+    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
+    if df_hist.empty:
+        st.info("Sin movimientos registrados.")
+    else:
+        st.dataframe(df_hist.set_index('id'), use_container_width=True)
