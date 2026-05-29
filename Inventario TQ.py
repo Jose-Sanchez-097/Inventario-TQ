@@ -39,20 +39,35 @@ def init_db():
         fecha_actualizacion TEXT, 
         fecha_creacion TEXT)''')
     
-    # Tabla sistema - NUEVA ESTRUCTURA
-    c.execute('''CREATE TABLE IF NOT EXISTS sistema (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        equipo TEXT NOT NULL, 
-        articulo TEXT DEFAULT '',
-        modelo TEXT DEFAULT '', 
-        medidas TEXT DEFAULT '', 
-        eficiencia TEXT DEFAULT '', 
-        cantidad INTEGER DEFAULT 0,
-        ubicacion TEXT DEFAULT '', 
-        observaciones TEXT DEFAULT '',
-        cantidad_minima INTEGER DEFAULT 5,
-        fecha_actualizacion TEXT, 
-        fecha_creacion TEXT)''')
+    # Verificar y recrear tabla sistema si es necesaria
+    c.execute("PRAGMA table_info(sistema)")
+    columns = c.fetchall()
+    existing_cols = [col[1] for col in columns]
+    
+    if 'equipo' not in existing_cols:
+        # Eliminar y recrear tabla sistema
+        c.execute("DROP TABLE IF EXISTS sistema")
+        c.execute('''CREATE TABLE sistema (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            equipo TEXT NOT NULL, 
+            articulo TEXT DEFAULT '',
+            modelo TEXT DEFAULT '', 
+            medidas TEXT DEFAULT '', 
+            eficiencia TEXT DEFAULT '', 
+            cantidad INTEGER DEFAULT 0,
+            ubicacion TEXT DEFAULT '', 
+            observaciones TEXT DEFAULT '',
+            cantidad_minima INTEGER DEFAULT 5,
+            fecha_actualizacion TEXT, 
+            fecha_creacion TEXT)''')
+    else:
+        # Agregar columnas faltantes si existen
+        if 'articulo' not in existing_cols:
+            c.execute("ALTER TABLE sistema ADD COLUMN articulo TEXT DEFAULT ''")
+        if 'ubicacion' not in existing_cols:
+            c.execute("ALTER TABLE sistema ADD COLUMN ubicacion TEXT DEFAULT ''")
+        if 'cantidad_minima' not in existing_cols:
+            c.execute("ALTER TABLE sistema ADD COLUMN cantidad_minima INTEGER DEFAULT 5")
     
     # Tabla historial
     c.execute('''CREATE TABLE IF NOT EXISTS historial (
@@ -413,21 +428,3 @@ def main():
         
         if menu == "🏠 Inicio":
             mostrar_dashboard()
-        elif menu == "➕ Agregar Insumo":
-            pagina_agregar_insumo()
-        elif menu == "✏️ Modificar Insumo":
-            pagina_modificar_insumo()
-        elif menu == "🗑️ Eliminar Insumo":
-            pagina_eliminar_insumo()
-        elif menu == "🔍 Buscar Insumo":
-            pagina_buscar()
-        elif menu == "⚙️ Agregar Sistema":
-            pagina_sistema()
-        elif menu == "🔍 Buscar Sistema":
-            pagina_buscar_sistema()
-        elif menu == "📜 Historial":
-            pagina_historial()
-
-if __name__ == "__main__":
-    main()
-    
