@@ -84,13 +84,7 @@ from database.db import get_connection
 def registrar_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    with get_connection() as conn:
-        conn.execute(
-            """
-            INSERT INTO historial
-            (fecha, accion, descripcion, usuario)
-            VALUES (?, ?, ?, ?)
-            """,
+    with get_connection() as conn:conn.execute(""" INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?) """),
             (fecha, accion, descripcion, usuario)
 
 from database.db import get_connection
