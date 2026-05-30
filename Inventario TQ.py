@@ -131,7 +131,6 @@ def importar_datos(json_data):
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         
-        # Importar inventario
         if "inventario" in datos:
             for item in datos["inventario"]:
                 c.execute("""INSERT INTO inventario 
@@ -142,7 +141,6 @@ def importar_datos(json_data):
                      item.get('realizado_por', ''), item.get('observaciones', ''), 
                      item.get('ubicacion', ''), item.get('fecha_actualizacion', '')))
         
-        # Importar sistema
         if "sistema" in datos:
             for item in datos["sistema"]:
                 c.execute("""INSERT INTO sistema 
@@ -168,7 +166,7 @@ st.title("📦 Plataforma de Gestion de Inventarios TQ")
 # Verificar base de datos
 if verificar_db_existe():
     st.sidebar.success("✅ Base de datos conectada")
-    st.sidebar.info(f"📁 {DB_FILE}")
+    st.sidebar.info(DB_FILE)
 else:
     st.sidebar.error("❌ Error al conectar base de datos")
 
@@ -181,6 +179,7 @@ menu = st.sidebar.selectbox("Menu Principal", [
     "🔍 Buscar Inventario", 
     "➕ Agregar Sistema",
     "✏️ Modificar Sistema",
+    "🗑️ Eliminar Sistema",
     "🔍 Buscar Sistema", 
     "📜 Historial",
     "💾 Respaldar/Importar"
@@ -427,4 +426,7 @@ elif menu == "✏️ Modificar Sistema":
                 eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
                 
                 c3, c4 = st.columns(2)
-                medidas = c3.text_input("Medidas", value=item['med
+                medidas = c3.text_input("Medidas", value=item['medidas'])
+                cantidad = c4.number_input("Cantidad", min_value=0, value=int(item['cantidad']))
+                
+                c5, c6 = st.columns(
