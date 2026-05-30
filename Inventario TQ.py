@@ -17,13 +17,7 @@ def get_connection():
         raise
     finally:
         conn.close()
-```
 
----
-
-# database/init_db.py
-
-```python
 from database.db import get_connection
 
 
@@ -55,13 +49,6 @@ def init_db():
             usuario TEXT
         )
         ''')
-```
-
----
-
-# utils/validators.py
-
-```python
 
 def validar_texto(texto: str, minimo=1, maximo=100):
     if not texto:
@@ -80,13 +67,7 @@ def validar_texto(texto: str, minimo=1, maximo=100):
 
 def validar_cantidad(cantidad):
     return cantidad >= 0
-```
 
----
-
-# utils/security.py
-
-```python
 import os
 from dotenv import load_dotenv
 
@@ -95,13 +76,7 @@ load_dotenv()
 
 def validar_admin(password):
     return password == os.getenv("ADMIN_PASSWORD")
-```
 
----
-
-# modules/historial.py
-
-```python
 from datetime import datetime
 from database.db import get_connection
 
@@ -117,14 +92,7 @@ def registrar_historial(accion, descripcion, usuario):
             VALUES (?, ?, ?, ?)
             """,
             (fecha, accion, descripcion, usuario)
-        )
-```
 
----
-
-# services/inventario_service.py
-
-```python
 from database.db import get_connection
 from modules.historial import registrar_historial
 
@@ -224,13 +192,7 @@ class InventarioService:
             f"ID eliminado: {item_id}",
             usuario
         )
-```
 
----
-
-# app.py
-
-```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
