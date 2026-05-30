@@ -48,7 +48,7 @@ def get_connection():
 # RESETEAR BASE DE DATOS (SOLO DESARROLLO)
 # =========================================================
 
-RESET_DB = True
+RESET_DB = False
 
 # =========================================================
 # CREAR TABLAS
