@@ -1,250 +1,448 @@
-import streamlit as st
+
+# database/db.py
+
+```python
 import sqlite3
-import pandas as pd
-from datetime import datetime
-import time
+from contextlib import contextmanager
 
-st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
+DB_FILE = 'data/inventario.db'
 
-DB_FILE = 'inventario.db'
+@contextmanager
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+```
+
+---
+
+# database/init_db.py
+
+```python
+from database.db import get_connection
+
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='inventario'")
-    if not c.fetchone():
-        c.execute('''CREATE TABLE inventario (id INTEGER PRIMARY KEY AUTOINCREMENT, tipo_insumo TEXT NOT NULL, medidas TEXT, eficiencia TEXT, modelo TEXT, equipo TEXT, cantidad INTEGER DEFAULT 0, realizado_por TEXT, observaciones TEXT, fecha_actualizacion TEXT)''')
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sistema'")
-    if not c.fetchone():
-        c.execute('''CREATE TABLE sistema (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tipo_filtro TEXT, modelo TEXT, eficiencia TEXT, medidas TEXT, cantidad INTEGER DEFAULT 0, fecha_actualizacion TEXT)''')
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='historial'")
-    if not c.fetchone():
-        c.execute('''CREATE TABLE historial (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, accion TEXT, descripcion TEXT, usuario TEXT)''')
-    conn.commit()
-    conn.close()
+    with get_connection() as conn:
+        cursor = conn.cursor()
 
-def run_query(query, params=()):
-    conn = sqlite3.connect(DB_FILE)
-    df = pd.read_sql_query(query, conn, params=params if params else ())
-    conn.close()
-    return df
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventario (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_insumo TEXT NOT NULL,
+            medidas TEXT,
+            eficiencia TEXT,
+            modelo TEXT,
+            equipo TEXT,
+            cantidad INTEGER DEFAULT 0,
+            realizado_por TEXT,
+            observaciones TEXT,
+            fecha_actualizacion TEXT
+        )
+        ''')
 
-def execute_query(query, params=()):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute(query, params)
-    conn.commit()
-    conn.close()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS historial (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT,
+            accion TEXT,
+            descripcion TEXT,
+            usuario TEXT
+        )
+        ''')
+```
 
-def get_inventario():
-    return run_query("SELECT * FROM inventario")
+---
 
-def get_sistema():
-    return run_query("SELECT * FROM sistema")
+# utils/validators.py
 
-def add_to_historial(accion, descripcion, usuario):
+```python
+
+def validar_texto(texto: str, minimo=1, maximo=100):
+    if not texto:
+        return False
+
+    texto = texto.strip()
+
+    if len(texto) < minimo:
+        return False
+
+    if len(texto) > maximo:
+        return False
+
+    return True
+
+
+def validar_cantidad(cantidad):
+    return cantidad >= 0
+```
+
+---
+
+# utils/security.py
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def validar_admin(password):
+    return password == os.getenv("ADMIN_PASSWORD")
+```
+
+---
+
+# modules/historial.py
+
+```python
+from datetime import datetime
+from database.db import get_connection
+
+
+def registrar_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", (fecha, accion, descripcion, usuario))
 
-def mostrar_mensaje_exito(mensaje):
-    success_placeholder = st.empty()
-    success_placeholder.success(mensaje)
-    time.sleep(5)
-    success_placeholder.empty()
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO historial
+            (fecha, accion, descripcion, usuario)
+            VALUES (?, ?, ?, ?)
+            """,
+            (fecha, accion, descripcion, usuario)
+        )
+```
+
+---
+
+# services/inventario_service.py
+
+```python
+from database.db import get_connection
+from modules.historial import registrar_historial
+
+
+class InventarioService:
+
+    @staticmethod
+    def obtener_todos():
+        with get_connection() as conn:
+            return conn.execute(
+                "SELECT * FROM inventario ORDER BY id DESC"
+            ).fetchall()
+
+    @staticmethod
+    def agregar(data):
+        with get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO inventario (
+                    tipo_insumo,
+                    medidas,
+                    eficiencia,
+                    modelo,
+                    equipo,
+                    cantidad,
+                    realizado_por,
+                    observaciones,
+                    fecha_actualizacion
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    data['tipo_insumo'],
+                    data['medidas'],
+                    data['eficiencia'],
+                    data['modelo'],
+                    data['equipo'],
+                    data['cantidad'],
+                    data['realizado_por'],
+                    data['observaciones'],
+                    data['fecha_actualizacion']
+                )
+            )
+
+        registrar_historial(
+            "AGREGAR INSUMO",
+            f"Insumo agregado: {data['tipo_insumo']}",
+            data['realizado_por']
+        )
+
+    @staticmethod
+    def actualizar(item_id, data):
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE inventario
+                SET
+                    tipo_insumo=?,
+                    medidas=?,
+                    eficiencia=?,
+                    modelo=?,
+                    equipo=?,
+                    cantidad=?,
+                    observaciones=?,
+                    fecha_actualizacion=?
+                WHERE id=?
+                """,
+                (
+                    data['tipo_insumo'],
+                    data['medidas'],
+                    data['eficiencia'],
+                    data['modelo'],
+                    data['equipo'],
+                    data['cantidad'],
+                    data['observaciones'],
+                    data['fecha_actualizacion'],
+                    item_id
+                )
+            )
+
+        registrar_historial(
+            "MODIFICAR INSUMO",
+            f"ID {item_id} actualizado",
+            "Usuario"
+        )
+
+    @staticmethod
+    def eliminar(item_id, usuario="Admin"):
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM inventario WHERE id=?",
+                (item_id,)
+            )
+
+        registrar_historial(
+            "ELIMINAR INSUMO",
+            f"ID eliminado: {item_id}",
+            usuario
+        )
+```
+
+---
+
+# app.py
+
+```python
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+from database.init_db import init_db
+from services.inventario_service import InventarioService
+from utils.validators import validar_texto, validar_cantidad
+from utils.security import validar_admin
+
+
+st.set_page_config(
+    page_title="Inventario TQ PRO",
+    page_icon="📦",
+    layout="wide"
+)
+
 
 init_db()
 
-st.title("📦 Plataforma de Gestion de Inventarios")
 
-menu = st.sidebar.selectbox("Menu Principal", ["🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", "➕ Agregar Sistema", "🔍 Buscar Sistema", "📜 Historial"])
+st.title("📦 Sistema Profesional de Inventarios")
 
-if menu == "🏠 Inicio":
-    st.header("Panel de Control en Tiempo Real")
-    df = get_inventario()
-    df_sis = get_sistema()
-    col1, col2 = st.columns(2)
-    col1.metric("Total Insumos", len(df))
-    col2.metric("Total Sistemas", len(df_sis))
-    st.markdown("---")
-    st.subheader("⚠️ Alerta: Stock Bajo (< 5 unidades)")
-    if not df.empty:
-        low_stock = df[df['cantidad'] < 5]
-        if not low_stock.empty:
-            st.error(f"¡Tienes {len(low_stock)} insumos con stock crítico!")
-            st.dataframe(low_stock.set_index('id'), use_container_width=True)
-        else:
-            st.success("✅ Inventario en niveles óptimos.")
-    if not df_sis.empty:
-        low_stock_sis = df_sis[df_sis['cantidad'] < 5]
-        if not low_stock_sis.empty:
-            st.warning(f"¡Tienes {len(low_stock_sis)} sistemas con stock crítico!")
-    st.subheader("📋 Vista General del Inventario")
-    st.dataframe(df.set_index('id'), use_container_width=True)
+menu = st.sidebar.selectbox(
+    "Menú",
+    [
+        "Inicio",
+        "Agregar Insumo",
+        "Modificar Insumo",
+        "Eliminar Insumo"
+    ]
+)
 
-elif menu == "➕ Agregar Insumo":
+
+if menu == "Inicio":
+
+    st.header("Dashboard")
+
+    datos = InventarioService.obtener_todos()
+
+    if datos:
+        df = pd.DataFrame([dict(x) for x in datos])
+
+        col1, col2 = st.columns(2)
+
+        col1.metric("Total Insumos", len(df))
+
+        stock_bajo = len(df[df['cantidad'] < 5])
+
+        col2.metric("Stock Bajo", stock_bajo)
+
+        st.subheader("Inventario")
+        st.dataframe(df, use_container_width=True)
+
+    else:
+        st.info("No hay datos registrados")
+
+
+elif menu == "Agregar Insumo":
+
     st.header("Agregar Nuevo Insumo")
-    with st.form("form_agregar"):
-        c1, c2 = st.columns(2)
-        tipo = c1.text_input("Tipo de Insumo *")
-        modelo = c1.text_input("Modelo")
-        medidas = c2.text_input("Medidas")
-        eficiencia = c2.text_input("Eficiencia")
-        c3, c4 = st.columns(2)
-        equipo = c3.text_input("Equipo")
-        cantidad = c4.number_input("Cantidad Actual *", min_value=0, step=1)
+
+    with st.form("agregar_form"):
+
+        col1, col2 = st.columns(2)
+
+        tipo = col1.text_input("Tipo Insumo")
+        modelo = col1.text_input("Modelo")
+
+        medidas = col2.text_input("Medidas")
+        eficiencia = col2.text_input("Eficiencia")
+
+        equipo = st.text_input("Equipo")
+
+        cantidad = st.number_input(
+            "Cantidad",
+            min_value=0,
+            step=1
+        )
+
         realizado_por = st.text_input("Realizado por")
+
         observaciones = st.text_area("Observaciones")
-        submit = st.form_submit_button("💾 Guardar Insumo")
-        if submit and tipo:
-            fecha_actual = datetime.now().strftime("%Y-%m-%d")
-            cantidad_int = int(cantidad) if cantidad else 0
-            sql = f"""INSERT INTO inventario (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, fecha_actualizacion) VALUES ('{tipo}', '{medidas if medidas else ''}', '{eficiencia if eficiencia else ''}', '{modelo if modelo else ''}', '{equipo if equipo else ''}', {cantidad_int}, '{realizado_por if realizado_por else ''}', '{observaciones if observaciones else ''}', '{fecha_actual}')"""
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute(sql)
-            conn.commit()
-            conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR INSUMO", f"Insumo: {tipo} | Cantidad: {cantidad_int} | Modelo: {modelo if modelo else 'N/A'}", realizado_por if realizado_por else "Usuario")
-            mostrar_mensaje_exito("✅ Insumo agregado exitosamente!")
-            st.rerun()
-        elif submit:
-            st.warning("Por favor complete los campos obligatorios (*).")
 
-elif menu == "✏️ Modificar Insumo":
-    st.header("Modificar Insumo Existente")
-    df = get_inventario()
-    if df.empty:
-        st.info("No hay insumos para modificar.")
-    else:
-        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccione Insumo a Modificar", opciones)
-        if seleccion:
-            item_id = int(seleccion.split(" - ")[0])
-            item = df[df['id'] == item_id].iloc[0]
-            with st.form("form_modificar"):
-                c1, c2 = st.columns(2)
-                tipo = c1.text_input("Tipo de Insumo", value=item['tipo_insumo'])
-                modelo = c1.text_input("Modelo", value=item['modelo'])
-                medidas = c2.text_input("Medidas", value=item['medidas'])
-                eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
-                c3, c4 = st.columns(2)
-                equipo = c3.text_input("Equipo", value=item['equipo'])
-                cantidad = c4.number_input("Cantidad Actual", min_value=0, value=int(item['cantidad']))
-                observaciones = st.text_area("Observaciones", value=item['observaciones'])
-                submit = st.form_submit_button("✏️ Actualizar")
-                if submit:
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    cantidad_actual = int(cantidad)
-                    sql = f"""UPDATE inventario SET tipo_insumo='{tipo}', medidas='{medidas if medidas else ''}', eficiencia='{eficiencia if eficiencia else ''}', modelo='{modelo if modelo else ''}', equipo='{equipo if equipo else ''}', cantidad={cantidad_actual}, observaciones='{observaciones if observaciones else ''}', fecha_actualizacion='{fecha_actual}' WHERE id={item_id}"""
-                    conn = sqlite3.connect(DB_FILE)
-                    c = conn.cursor()
-                    c.execute(sql)
-                    conn.commit()
-                    conn.close()
-                    # Historial detallado
-                    add_to_historial("MODIFICAR INSUMO", f"ID: {item_id} | Nuevo: {tipo} | Cantidad: {cantidad_actual} | Modelo: {modelo if modelo else 'N/A'}", "Usuario")
-                    mostrar_mensaje_exito("✅ Insumo actualizado exitosamente!")
-                    st.rerun()
+        submit = st.form_submit_button("Guardar")
 
-elif menu == "🗑️ Eliminar Insumo":
-    st.header("Eliminar Insumo")
-    df = get_inventario()
-    if df.empty:
-        st.info("Inventario vacío.")
-    else:
-        opciones = df.apply(lambda x: f"{x['id']} - {x['tipo_insumo']}", axis=1).tolist()
-        seleccion = st.selectbox("Seleccione Insumo a Eliminar", opciones)
-        passwd = st.text_input("Ingrese Contraseña para Confirmar Eliminación", type="password")
-        if st.button("🗑️ Eliminar Definitivamente"):
-            if passwd == "TQ2026":
-                item_id = int(seleccion.split(" - ")[0])
-                nombre_insumo = df[df['id'] == item_id]['tipo_insumo'].values[0]
-                cantidad_insumo = df[df['id'] == item_id]['cantidad'].values[0]
-                conn = sqlite3.connect(DB_FILE)
-                c = conn.cursor()
-                c.execute(f"DELETE FROM inventario WHERE id={item_id}")
-                conn.commit()
-                conn.close()
-                # Historial detallado
-                add_to_historial("ELIMINAR INSUMO", f"ID: {item_id} | Insumo: {nombre_insumo} | Cantidad: {cantidad_insumo}", "Admin")
-                mostrar_mensaje_exito("✅ Insumo eliminado exitosamente!")
+        if submit:
+
+            if not validar_texto(tipo):
+                st.error("Tipo de insumo inválido")
+
+            elif not validar_cantidad(cantidad):
+                st.error("Cantidad inválida")
+
+            else:
+
+                data = {
+                    'tipo_insumo': tipo.strip(),
+                    'medidas': medidas.strip(),
+                    'eficiencia': eficiencia.strip(),
+                    'modelo': modelo.strip(),
+                    'equipo': equipo.strip(),
+                    'cantidad': int(cantidad),
+                    'realizado_por': realizado_por.strip(),
+                    'observaciones': observaciones.strip(),
+                    'fecha_actualizacion': datetime.now().strftime("%Y-%m-%d")
+                }
+
+                InventarioService.agregar(data)
+
+                st.success("✅ Insumo agregado correctamente")
+
                 st.rerun()
+
+
+elif menu == "Modificar Insumo":
+
+    st.header("Modificar Insumo")
+
+    datos = InventarioService.obtener_todos()
+
+    if datos:
+
+        df = pd.DataFrame([dict(x) for x in datos])
+
+        opciones = df.apply(
+            lambda x: f"{x['id']} - {x['tipo_insumo']}",
+            axis=1
+        ).tolist()
+
+        seleccionado = st.selectbox(
+            "Seleccione",
+            opciones
+        )
+
+        item_id = int(seleccionado.split(" - ")[0])
+
+        item = df[df['id'] == item_id].iloc[0]
+
+        with st.form("editar_form"):
+
+            tipo = st.text_input(
+                "Tipo",
+                value=item['tipo_insumo']
+            )
+
+            cantidad = st.number_input(
+                "Cantidad",
+                min_value=0,
+                value=int(item['cantidad'])
+            )
+
+            submit = st.form_submit_button("Actualizar")
+
+            if submit:
+
+                data = {
+                    'tipo_insumo': tipo,
+                    'medidas': item['medidas'],
+                    'eficiencia': item['eficiencia'],
+                    'modelo': item['modelo'],
+                    'equipo': item['equipo'],
+                    'cantidad': int(cantidad),
+                    'observaciones': item['observaciones'],
+                    'fecha_actualizacion': datetime.now().strftime("%Y-%m-%d")
+                }
+
+                InventarioService.actualizar(item_id, data)
+
+                st.success("✅ Actualizado correctamente")
+
+                st.rerun()
+
+
+elif menu == "Eliminar Insumo":
+
+    st.header("Eliminar Insumo")
+
+    datos = InventarioService.obtener_todos()
+
+    if datos:
+
+        df = pd.DataFrame([dict(x) for x in datos])
+
+        opciones = df.apply(
+            lambda x: f"{x['id']} - {x['tipo_insumo']}",
+            axis=1
+        ).tolist()
+
+        seleccionado = st.selectbox(
+            "Seleccione",
+            opciones
+        )
+
+        password = st.text_input(
+            "Contraseña admin",
+            type="password"
+        )
+
+        if st.button("Eliminar"):
+
+            if validar_admin(password):
+
+                item_id = int(seleccionado.split(" - ")[0])
+
+                InventarioService.eliminar(item_id)
+
+                st.success("✅ Eliminado correctamente")
+
+                st.rerun()
+
             else:
-                st.error("❌ Contraseña incorrecta.")
-
-elif menu == "🔍 Buscar Inventario":
-    st.header("🔍 Buscar Insumo en Inventario")
-    df = get_inventario()
-    if df.empty:
-        st.info("No hay insumos registrados.")
-    else:
-        campo_busqueda = st.selectbox("Seleccione campo de búsqueda:", ["tipo_insumo", "modelo", "equipo", "medidas", "eficiencia", "realizado_por"])
-        texto_busqueda = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
-        if texto_busqueda:
-            resultado = df[df[campo_busqueda].str.contains(texto_busqueda, case=False, na=False)]
-            if not resultado.empty:
-                st.success(f"✅ Se encontraron {len(resultado)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR INSUMO", f"Busqueda: {texto_busqueda} | Campo: {campo_busqueda} | Resultados: {len(resultado)}", "Usuario")
-                st.dataframe(resultado.set_index('id'), use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron resultados")
-        else:
-            st.dataframe(df.set_index('id'), use_container_width=True)
-
-elif menu == "➕ Agregar Sistema":
-    st.header("Agregar Nuevo Sistema")
-    with st.form("form_sistema_agregar"):
-        c1, c2 = st.columns(2)
-        nombre = c1.text_input("Nombre del Sistema *")
-        tipo_filtro = c1.text_input("Tipo de Filtro")
-        modelo = c2.text_input("Modelo")
-        eficiencia = c2.text_input("Eficiencia")
-        c3, c4 = st.columns(2)
-        medidas = c3.text_input("Medidas")
-        cantidad = c4.number_input("Cantidad *", min_value=0, step=1)
-        submit = st.form_submit_button("💾 Guardar Sistema")
-        if submit and nombre:
-            fecha_actual = datetime.now().strftime("%Y-%m-%d")
-            cantidad_int = int(cantidad) if cantidad else 0
-            sql = f"""INSERT INTO sistema (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, fecha_actualizacion) VALUES ('{nombre}', '{tipo_filtro if tipo_filtro else ''}', '{modelo if modelo else ''}', '{eficiencia if eficiencia else ''}', '{medidas if medidas else ''}', {cantidad_int}, '{fecha_actual}')"""
-            conn = sqlite3.connect(DB_FILE)
-            c = conn.cursor()
-            c.execute(sql)
-            conn.commit()
-            conn.close()
-            # Historial detallado
-            add_to_historial("AGREGAR SISTEMA", f"Sistema: {nombre} | Cantidad: {cantidad_int} | Tipo Filtro: {tipo_filtro if tipo_filtro else 'N/A'}", "Usuario")
-            mostrar_mensaje_exito("✅ Sistema agregado exitosamente!")
-            st.rerun()
-        elif submit:
-            st.warning("Complete los campos obligatorios (*).")
-
-elif menu == "🔍 Buscar Sistema":
-    st.header("🔍 Buscar Sistema")
-    df_sis = get_sistema()
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas"])
-        texto_busqueda_sis = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
-        if texto_busqueda_sis:
-            resultado_sis = df_sis[df_sis[campo_busqueda_sis].str.contains(texto_busqueda_sis, case=False, na=False)]
-            if not resultado_sis.empty:
-                st.success(f"✅ Se encontraron {len(resultado_sis)} resultado(s)")
-                # Historial de búsqueda
-                add_to_historial("BUSCAR SISTEMA", f"Busqueda: {texto_busqueda_sis} | Campo: {campo_busqueda_sis} | Resultados: {len(resultado_sis)}", "Usuario")
-                st.dataframe(resultado_sis.set_index('id'), use_container_width=True)
-            else:
-                st.warning(f"⚠️ No se encontraron resultados")
-        else:
-            st.dataframe(df_sis.set_index('id'), use_container_width=True)
-
-elif menu == "📜 Historial":
-    st.header("📜 Historial de Movimientos")
-    df_hist = run_query("SELECT * FROM historial ORDER BY fecha DESC")
-    if df_hist.empty:
-        st.info("Sin movimientos registrados.")
-    else:
-        st.dataframe(df_hist.set_index('id'), use_container_width=True)
+                st.error("❌ Contraseña incorrecta")
