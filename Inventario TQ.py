@@ -3,11 +3,20 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 import time
+import os
+import json
+
+# --- CONFIGURACIÓN DE RUTA ABSOLUTA ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, 'inventario.db')
 
 # Configuración de la Página
-st.set_page_config(page_title="Gestion de Inventarios TQ", page_icon="📦", layout="wide", initial_sidebar_state="expanded")
-
-DB_FILE = 'inventario.db'
+st.set_page_config(
+    page_title="Gestion de Inventarios TQ", 
+    page_icon="📦", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
 
 # --- FUNCIONES DE BASE DE DATOS ---
 def init_db():
@@ -50,24 +59,12 @@ def init_db():
         descripcion TEXT, 
         usuario TEXT)''')
     
-    # Verificar y agregar columnas si no existen (para actualizaciones de la DB)
-    try:
-        c.execute("ALTER TABLE inventario ADD COLUMN ubicacion TEXT")
-    except:
-        pass
-    
-    try:
-        c.execute("ALTER TABLE sistema ADD COLUMN ubicacion TEXT")
-    except:
-        pass
-    
-    try:
-        c.execute("ALTER TABLE sistema ADD COLUMN observaciones TEXT")
-    except:
-        pass
-    
     conn.commit()
     conn.close()
+
+def verificar_db_existe():
+    """Verifica si la base de datos existe."""
+    return os.path.exists(DB_FILE)
 
 def run_query(query, params=()):
     """Ejecuta consultas SELECT y retorna un DataFrame."""
@@ -99,6 +96,9 @@ def get_inventario():
 def get_sistema():
     return run_query("SELECT * FROM sistema")
 
+def get_historial():
+    return run_query("SELECT * FROM historial ORDER BY fecha DESC")
+
 def add_to_historial(accion, descripcion, usuario):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     execute_query("INSERT INTO historial (fecha, accion, descripcion, usuario) VALUES (?, ?, ?, ?)", 
@@ -110,22 +110,86 @@ def mostrar_mensaje_exito(mensaje):
     time.sleep(5)
     success_placeholder.empty()
 
+def exportar_datos():
+    """Exporta todos los datos a JSON."""
+    df_inv = get_inventario()
+    df_sis = get_sistema()
+    df_hist = get_historial()
+    
+    datos = {
+        "inventario": df_inv.to_dict(orient="records"),
+        "sistema": df_sis.to_dict(orient="records"),
+        "historial": df_hist.to_dict(orient="records")
+    }
+    
+    return json.dumps(datos, indent=4, ensure_ascii=False)
+
+def importar_datos(json_data):
+    """Importa datos desde JSON."""
+    try:
+        datos = json.loads(json_data)
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        # Importar inventario
+        if "inventario" in datos:
+            for item in datos["inventario"]:
+                c.execute("""INSERT INTO inventario 
+                    (tipo_insumo, medidas, eficiencia, modelo, equipo, cantidad, realizado_por, observaciones, ubicacion, fecha_actualizacion) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (item.get('tipo_insumo', ''), item.get('medidas', ''), item.get('eficiencia', ''), 
+                     item.get('modelo', ''), item.get('equipo', ''), item.get('cantidad', 0), 
+                     item.get('realizado_por', ''), item.get('observaciones', ''), 
+                     item.get('ubicacion', ''), item.get('fecha_actualizacion', '')))
+        
+        # Importar sistema
+        if "sistema" in datos:
+            for item in datos["sistema"]:
+                c.execute("""INSERT INTO sistema 
+                    (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, ubicacion, observaciones, fecha_actualizacion) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (item.get('nombre', ''), item.get('tipo_filtro', ''), item.get('modelo', ''), 
+                     item.get('eficiencia', ''), item.get('medidas', ''), item.get('cantidad', 0), 
+                     item.get('ubicacion', ''), item.get('observaciones', ''), 
+                     item.get('fecha_actualizacion', '')))
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error al importar: {e}")
+        return False
+
 # --- INICIO DE LA APP ---
 init_db()
 
 st.title("📦 Plataforma de Gestion de Inventarios TQ")
 
+# Verificar base de datos
+if verificar_db_existe():
+    st.sidebar.success("✅ Base de datos conectada")
+    st.sidebar.info(f📁 {DB_FILE})
+else:
+    st.sidebar.error("❌ Error al conectar base de datos")
+
 # Menú Sidebar
 menu = st.sidebar.selectbox("Menu Principal", [
-    "🏠 Inicio", "➕ Agregar Insumo", "✏️ Modificar Insumo", 
-    "🗑️ Eliminar Insumo", "🔍 Buscar Inventario", 
-    "➕ Agregar Sistema", "✏️ Modificar Sistema", "🔍 Buscar Sistema", "📜 Historial"
+    "🏠 Inicio", 
+    "➕ Agregar Insumo", 
+    "✏️ Modificar Insumo", 
+    "🗑️ Eliminar Insumo", 
+    "🔍 Buscar Inventario", 
+    "➕ Agregar Sistema",
+    "✏️ Modificar Sistema",
+    "🔍 Buscar Sistema", 
+    "📜 Historial",
+    "💾 Respaldar/Importar"
 ])
 
 # --- VISTAS ---
 
 if menu == "🏠 Inicio":
-    st.header("Panel de Control en Tiempo Real")
+    st.header("📊 Panel de Control en Tiempo Real")
     
     df = get_inventario()
     df_sis = get_sistema()
@@ -138,6 +202,7 @@ if menu == "🏠 Inicio":
     
     # Alertas de Stock Bajo
     st.subheader("⚠️ Alerta: Stock Bajo (< 5 unidades)")
+    
     if not df.empty:
         low_stock = df[df['cantidad'] < 5]
         if not low_stock.empty:
@@ -153,7 +218,7 @@ if menu == "🏠 Inicio":
 
     # Vista General
     st.subheader("📋 Vista General del Inventario")
-    tab1, tab2 = st.tabs(["Insumos", "Sistemas"])
+    tab1, tab2 = st.tabs(["📦 Insumos", "⚙️ Sistemas"])
     with tab1:
         st.dataframe(df.set_index('id'), use_container_width=True)
     with tab2:
@@ -161,7 +226,7 @@ if menu == "🏠 Inicio":
 
 
 elif menu == "➕ Agregar Insumo":
-    st.header("Agregar Nuevo Insumo")
+    st.header("➕ Agregar Nuevo Insumo")
     with st.form("form_agregar"):
         c1, c2 = st.columns(2)
         tipo = c1.text_input("Tipo de Insumo *")
@@ -204,7 +269,7 @@ elif menu == "➕ Agregar Insumo":
 
 
 elif menu == "✏️ Modificar Insumo":
-    st.header("Modificar Insumo Existente")
+    st.header("✏️ Modificar Insumo Existente")
     df = get_inventario()
     
     if df.empty:
@@ -249,7 +314,7 @@ elif menu == "✏️ Modificar Insumo":
 
 
 elif menu == "🗑️ Eliminar Insumo":
-    st.header("Eliminar Insumo")
+    st.header("🗑️ Eliminar Insumo")
     df = get_inventario()
     
     if df.empty:
@@ -299,7 +364,7 @@ elif menu == "🔍 Buscar Inventario":
 
 
 elif menu == "➕ Agregar Sistema":
-    st.header("Agregar Nuevo Sistema")
+    st.header("➕ Agregar Nuevo Sistema")
     with st.form("form_sistema_agregar"):
         c1, c2 = st.columns(2)
         nombre = c1.text_input("Nombre del Sistema *")
@@ -326,7 +391,7 @@ elif menu == "➕ Agregar Sistema":
                     fecha_actual = datetime.now().strftime("%Y-%m-%d")
                     query = """INSERT INTO sistema 
                               (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, ubicacion, observaciones, fecha_actualizacion) 
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
                     params = (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, ubicacion, observaciones, fecha_actual)
                     
                     execute_query(query, params)
@@ -341,7 +406,7 @@ elif menu == "➕ Agregar Sistema":
 
 
 elif menu == "✏️ Modificar Sistema":
-    st.header("Modificar Sistema Existente")
+    st.header("✏️ Modificar Sistema Existente")
     df_sis = get_sistema()
     
     if df_sis.empty:
@@ -356,43 +421,4 @@ elif menu == "✏️ Modificar Sistema":
             
             with st.form("form_sistema_modificar"):
                 c1, c2 = st.columns(2)
-                nombre = c1.text_input("Nombre del Sistema", value=item['nombre'])
-                tipo_filtro = c1.text_input("Tipo de Filtro", value=item['tipo_filtro'])
-                modelo = c2.text_input("Modelo", value=item['modelo'])
-                eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
-                
-                c3, c4 = st.columns(2)
-                medidas = c3.text_input("Medidas", value=item['medidas'])
-                cantidad = c4.number_input("Cantidad", min_value=0, value=int(item['cantidad']))
-                
-                c5, c6 = st.columns(2)
-                ubicacion = c5.text_input("Ubicación", value=item.get('ubicacion', ''))
-                
-                observaciones = st.text_area("Observaciones", value=item.get('observaciones', ''))
-                
-                submit = st.form_submit_button("✏️ Actualizar Sistema")
-                
-                if submit:
-                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
-                    query = """UPDATE sistema SET 
-                               nombre=?, tipo_filtro=?, modelo=?, eficiencia=?, medidas=?, cantidad=?, ubicacion=?, observaciones=?, fecha_actualizacion=? 
-                               WHERE id=?"""
-                    params = (nombre, tipo_filtro, modelo, eficiencia, medidas, cantidad, ubicacion, observaciones, fecha_actual, item_id)
-                    
-                    execute_query(query, params)
-                    add_to_historial("MODIFICAR SISTEMA", f"ID: {item_id} | Nuevo: {nombre} | Ubicación: {ubicacion}", "Usuario")
-                    
-                    st.success("✅ Sistema actualizado exitosamente!")
-                    st.rerun()
-
-
-elif menu == "🔍 Buscar Sistema":
-    st.header("🔍 Buscar Sistema")
-    df_sis = get_sistema()
-    
-    if df_sis.empty:
-        st.info("No hay sistemas registrados.")
-    else:
-        campo_busqueda_sis = st.selectbox("Seleccione campo de búsqueda:", 
-            ["nombre", "tipo_filtro", "modelo", "eficiencia", "medidas", "ubicacion"])
-        texto_busqueda_sis = st.text_input("Buscar:", placeholder="Ingrese texto a buscar...")
+                nombre = c
