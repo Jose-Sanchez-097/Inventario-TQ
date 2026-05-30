@@ -168,7 +168,7 @@ st.title("📦 Plataforma de Gestion de Inventarios TQ")
 # Verificar base de datos
 if verificar_db_existe():
     st.sidebar.success("✅ Base de datos conectada")
-    st.sidebar.info(f📁 {DB_FILE})
+    st.sidebar.info(f"📁 {DB_FILE}")
 else:
     st.sidebar.error("❌ Error al conectar base de datos")
 
@@ -421,4 +421,10 @@ elif menu == "✏️ Modificar Sistema":
             
             with st.form("form_sistema_modificar"):
                 c1, c2 = st.columns(2)
-                nombre = c
+                nombre = c1.text_input("Nombre del Sistema", value=item['nombre'])
+                tipo_filtro = c1.text_input("Tipo de Filtro", value=item['tipo_filtro'])
+                modelo = c2.text_input("Modelo", value=item['modelo'])
+                eficiencia = c2.text_input("Eficiencia", value=item['eficiencia'])
+                
+                c3, c4 = st.columns(2)
+                medidas = c3.text_input("Medidas", value=item['med
