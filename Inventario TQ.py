@@ -22,8 +22,10 @@ ADMIN_PASSWORD = "TQ2026"
 # =========================================================
 # RESET DB
 # =========================================================
+# CAMBIAR A True SOLO UNA VEZ SI HAY ERRORES DE COLUMNAS
+# DESPUÉS VOLVER A False
 
-RESET_DB = True
+RESET_DB = False
 
 # =========================================================
 # CONEXIÓN SQLITE
@@ -59,9 +61,9 @@ def init_db():
 
         cursor = conn.cursor()
 
-        # -------------------------------------------------
+        # =================================================
         # BORRAR TABLAS (SOLO DESARROLLO)
-        # -------------------------------------------------
+        # =================================================
 
         if RESET_DB:
 
@@ -69,9 +71,9 @@ def init_db():
             cursor.execute("DROP TABLE IF EXISTS sistema")
             cursor.execute("DROP TABLE IF EXISTS historial")
 
-        # -------------------------------------------------
+        # =================================================
         # TABLA INVENTARIO
-        # -------------------------------------------------
+        # =================================================
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario (
@@ -94,9 +96,9 @@ def init_db():
         )
         """)
 
-        # -------------------------------------------------
+        # =================================================
         # TABLA SISTEMA
-        # -------------------------------------------------
+        # =================================================
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS sistema (
@@ -116,9 +118,9 @@ def init_db():
         )
         """)
 
-        # -------------------------------------------------
+        # =================================================
         # TABLA HISTORIAL
-        # -------------------------------------------------
+        # =================================================
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS historial (
@@ -399,7 +401,7 @@ def agregar_sistema(data):
 
         )
 
-        return True, "Sistema agregado"
+        return True, "Sistema agregado correctamente"
 
     except Exception as e:
 
@@ -560,94 +562,54 @@ elif menu == "➕ Agregar Articulo":
                     st.error(mensaje)
 
 # =========================================================
-# MODIFICAR ARTICULO
+# AGREGAR SISTEMA
 # =========================================================
 
-elif menu == "✏️ Modificar Articulo":
+elif menu == "➕ Agregar Sistema":
 
-    st.header("Modificar Articulo")
+    st.header("Agregar Nuevo Sistema")
 
-    df = obtener_inventario()
+    with st.form("sistema_form"):
 
-    if df.empty:
+        c1, c2 = st.columns(2)
 
-        st.info("No existen articulos")
+        nombre = c1.text_input("Nombre Sistema *")
+        tipo_filtro = c1.text_input("Tipo Filtro")
 
-    else:
+        modelo = c2.text_input("Modelo")
+        eficiencia = c2.text_input("Eficiencia")
 
-        opciones = df.apply(
-            lambda x: f"{x['id']} - {x['articulo']}",
-            axis=1
-        ).tolist()
+        medidas = st.text_input("Medidas")
 
-        seleccion = st.selectbox(
-            "Seleccione Articulo",
-            opciones
+        cantidad = st.number_input(
+            "Cantidad",
+            min_value=0,
+            step=1
         )
 
-        item_id = int(seleccion.split(" - ")[0])
+        submit = st.form_submit_button("💾 Guardar Sistema")
 
-        item = df[df["id"] == item_id].iloc[0]
+        if submit:
 
-        with st.form("modificar_form"):
+            if not validar_texto(nombre):
 
-            articulo = st.text_input(
-                "Articulo",
-                value=item["articulo"]
-            )
+                st.error("Ingrese un nombre válido")
 
-            modelo = st.text_input(
-                "Modelo",
-                value=item["modelo"]
-            )
-
-            medidas = st.text_input(
-                "Medidas",
-                value=item["medidas"]
-            )
-
-            eficiencia = st.text_input(
-                "Eficiencia",
-                value=item["eficiencia"]
-            )
-
-            equipo = st.text_input(
-                "Equipo",
-                value=item["equipo"]
-            )
-
-            cantidad = st.number_input(
-                "Cantidad",
-                min_value=0,
-                value=int(item["cantidad"])
-            )
-
-            observaciones = st.text_area(
-                "Observaciones",
-                value=item["observaciones"]
-            )
-
-            submit = st.form_submit_button("✏️ Actualizar")
-
-            if submit:
+            else:
 
                 data = {
 
-                    "articulo": articulo.strip(),
-                    "medidas": medidas.strip(),
-                    "eficiencia": eficiencia.strip(),
+                    "nombre": nombre.strip(),
+                    "tipo_filtro": tipo_filtro.strip(),
                     "modelo": modelo.strip(),
-                    "equipo": equipo.strip(),
+                    "eficiencia": eficiencia.strip(),
+                    "medidas": medidas.strip(),
                     "cantidad": int(cantidad),
-                    "observaciones": observaciones.strip(),
                     "fecha_actualizacion": datetime.now().strftime("%Y-%m-%d")
 
                 }
 
-                ok, mensaje = actualizar_articulo(
-                    item_id,
-                    data
-                )
+                ok, mensaje = agregar_sistema(data)
 
                 if ok:
 
@@ -658,56 +620,3 @@ elif menu == "✏️ Modificar Articulo":
                 else:
 
                     st.error(mensaje)
-
-# =========================================================
-# ELIMINAR ARTICULO
-# =========================================================
-
-elif menu == "🗑️ Eliminar Articulo":
-
-    st.header("Eliminar Articulo")
-
-    df = obtener_inventario()
-
-    if df.empty:
-
-        st.info("Inventario vacío")
-
-    else:
-
-        opciones = df.apply(
-            lambda x: f"{x['id']} - {x['articulo']}",
-            axis=1
-        ).tolist()
-
-        seleccion = st.selectbox(
-            "Seleccione Articulo",
-            opciones
-        )
-
-        password = st.text_input(
-            "Contraseña Administrador",
-            type="password"
-        )
-
-        if st.button("🗑️ Eliminar"):
-
-            if password == ADMIN_PASSWORD:
-
-                item_id = int(seleccion.split(" - ")[0])
-
-                ok, mensaje = eliminar_articulo(item_id)
-
-                if ok:
-
-                    mostrar_exito("✅ " + mensaje)
-
-                    st.rerun()
-
-                else:
-
-                    st.error(mensaje)
-
-            else:
-
-                st.error("❌ Contraseña incorrecta")
