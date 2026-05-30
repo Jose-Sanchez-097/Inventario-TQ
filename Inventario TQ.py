@@ -1,7 +1,4 @@
 
-# database/db.py
-
-```python
 import sqlite3
 from contextlib import contextmanager
 
