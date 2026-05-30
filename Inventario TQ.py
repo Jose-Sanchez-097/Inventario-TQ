@@ -4,7 +4,6 @@ import pandas as pd
 from datetime import datetime
 from contextlib import contextmanager
 import time
-import os
 
 # =========================================================
 # CONFIGURACIÓN GENERAL
@@ -21,7 +20,13 @@ DB_FILE = "inventario.db"
 ADMIN_PASSWORD = "TQ2026"
 
 # =========================================================
-# CONEXIÓN SEGURA SQLITE
+# RESET DB
+# =========================================================
+
+RESET_DB = False
+
+# =========================================================
+# CONEXIÓN SQLITE
 # =========================================================
 
 @contextmanager
@@ -45,13 +50,7 @@ def get_connection():
         conn.close()
 
 # =========================================================
-# RESETEAR BASE DE DATOS (SOLO DESARROLLO)
-# =========================================================
-
-RESET_DB = False
-
-# =========================================================
-# CREAR TABLAS
+# CREAR BASE DE DATOS
 # =========================================================
 
 def init_db():
@@ -60,9 +59,9 @@ def init_db():
 
         cursor = conn.cursor()
 
-        # ----------------------------------------
-        # ELIMINAR TABLAS VIEJAS (OPCIONAL)
-        # ----------------------------------------
+        # -------------------------------------------------
+        # BORRAR TABLAS (SOLO DESARROLLO)
+        # -------------------------------------------------
 
         if RESET_DB:
 
@@ -70,16 +69,16 @@ def init_db():
             cursor.execute("DROP TABLE IF EXISTS sistema")
             cursor.execute("DROP TABLE IF EXISTS historial")
 
-        # ----------------------------------------
+        # -------------------------------------------------
         # TABLA INVENTARIO
-        # ----------------------------------------
+        # -------------------------------------------------
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario (
 
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-            tipo_insumo TEXT NOT NULL,
+            articulo TEXT NOT NULL,
             medidas TEXT,
             eficiencia TEXT,
             modelo TEXT,
@@ -95,9 +94,9 @@ def init_db():
         )
         """)
 
-        # ----------------------------------------
-        # TABLA SISTEMAS
-        # ----------------------------------------
+        # -------------------------------------------------
+        # TABLA SISTEMA
+        # -------------------------------------------------
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS sistema (
@@ -117,9 +116,9 @@ def init_db():
         )
         """)
 
-        # ----------------------------------------
+        # -------------------------------------------------
         # TABLA HISTORIAL
-        # ----------------------------------------
+        # -------------------------------------------------
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS historial (
@@ -153,10 +152,6 @@ def validar_texto(texto, minimo=1, maximo=100):
 
     return True
 
-def validar_cantidad(cantidad):
-
-    return cantidad >= 0
-
 # =========================================================
 # MENSAJES
 # =========================================================
@@ -183,10 +178,12 @@ def registrar_historial(accion, descripcion, usuario):
 
         conn.execute("""
         INSERT INTO historial (
+
             fecha,
             accion,
             descripcion,
             usuario
+
         )
         VALUES (?, ?, ?, ?)
         """, (
@@ -199,7 +196,7 @@ def registrar_historial(accion, descripcion, usuario):
         ))
 
 # =========================================================
-# CRUD INVENTARIO
+# INVENTARIO
 # =========================================================
 
 def obtener_inventario():
@@ -215,7 +212,7 @@ def obtener_inventario():
 
 # ---------------------------------------------------------
 
-def agregar_insumo(data):
+def agregar_articulo(data):
 
     try:
 
@@ -224,7 +221,7 @@ def agregar_insumo(data):
             conn.execute("""
             INSERT INTO inventario (
 
-                tipo_insumo,
+                articulo,
                 medidas,
                 eficiencia,
                 modelo,
@@ -238,7 +235,7 @@ def agregar_insumo(data):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
 
-                data["tipo_insumo"],
+                data["articulo"],
                 data["medidas"],
                 data["eficiencia"],
                 data["modelo"],
@@ -252,13 +249,13 @@ def agregar_insumo(data):
 
         registrar_historial(
 
-            "AGREGAR INSUMO",
-            f"Insumo agregado: {data['tipo_insumo']}",
+            "AGREGAR ARTICULO",
+            f"Articulo agregado: {data['articulo']}",
             data["realizado_por"]
 
         )
 
-        return True, "Insumo agregado correctamente"
+        return True, "Articulo agregado correctamente"
 
     except Exception as e:
 
@@ -266,7 +263,7 @@ def agregar_insumo(data):
 
 # ---------------------------------------------------------
 
-def actualizar_insumo(item_id, data):
+def actualizar_articulo(item_id, data):
 
     try:
 
@@ -276,7 +273,7 @@ def actualizar_insumo(item_id, data):
             UPDATE inventario
             SET
 
-                tipo_insumo=?,
+                articulo=?,
                 medidas=?,
                 eficiencia=?,
                 modelo=?,
@@ -288,7 +285,7 @@ def actualizar_insumo(item_id, data):
             WHERE id=?
             """, (
 
-                data["tipo_insumo"],
+                data["articulo"],
                 data["medidas"],
                 data["eficiencia"],
                 data["modelo"],
@@ -302,13 +299,13 @@ def actualizar_insumo(item_id, data):
 
         registrar_historial(
 
-            "MODIFICAR INSUMO",
-            f"Insumo actualizado ID {item_id}",
+            "MODIFICAR ARTICULO",
+            f"Articulo actualizado ID {item_id}",
             "Usuario"
 
         )
 
-        return True, "Insumo actualizado"
+        return True, "Articulo actualizado"
 
     except Exception as e:
 
@@ -316,7 +313,7 @@ def actualizar_insumo(item_id, data):
 
 # ---------------------------------------------------------
 
-def eliminar_insumo(item_id):
+def eliminar_articulo(item_id):
 
     try:
 
@@ -334,20 +331,20 @@ def eliminar_insumo(item_id):
 
         registrar_historial(
 
-            "ELIMINAR INSUMO",
-            f"Insumo eliminado: {item['tipo_insumo']}",
+            "ELIMINAR ARTICULO",
+            f"Articulo eliminado: {item['articulo']}",
             "Administrador"
 
         )
 
-        return True, "Insumo eliminado"
+        return True, "Articulo eliminado"
 
     except Exception as e:
 
         return False, str(e)
 
 # =========================================================
-# CRUD SISTEMAS
+# SISTEMAS
 # =========================================================
 
 def obtener_sistemas():
@@ -427,9 +424,9 @@ menu = st.sidebar.selectbox(
     [
 
         "🏠 Inicio",
-        "➕ Agregar Insumo",
-        "✏️ Modificar Insumo",
-        "🗑️ Eliminar Insumo",
+        "➕ Agregar Articulo",
+        "✏️ Modificar Articulo",
+        "🗑️ Eliminar Articulo",
         "🔍 Buscar Inventario",
         "➕ Agregar Sistema",
         "🔍 Buscar Sistema",
@@ -452,7 +449,7 @@ if menu == "🏠 Inicio":
 
     c1, c2, c3 = st.columns(3)
 
-    c1.metric("Total Insumos", len(df))
+    c1.metric("Total Articulos", len(df))
     c2.metric("Total Sistemas", len(df_sis))
 
     if not df.empty:
@@ -471,7 +468,7 @@ if menu == "🏠 Inicio":
         if not low_stock.empty:
 
             st.warning(
-                f"Existen {len(low_stock)} insumos con stock crítico"
+                f"Existen {len(low_stock)} articulos con stock crítico"
             )
 
             st.dataframe(
@@ -495,18 +492,18 @@ if menu == "🏠 Inicio":
         st.info("No existen registros")
 
 # =========================================================
-# AGREGAR INSUMO
+# AGREGAR ARTICULO
 # =========================================================
 
-elif menu == "➕ Agregar Insumo":
+elif menu == "➕ Agregar Articulo":
 
-    st.header("Agregar Nuevo Insumo")
+    st.header("Agregar Nuevo Articulo")
 
     with st.form("agregar_form"):
 
         c1, c2 = st.columns(2)
 
-        tipo = c1.text_input("Tipo Insumo *")
+        articulo = c1.text_input("Articulo *")
         modelo = c1.text_input("Modelo")
 
         medidas = c2.text_input("Medidas")
@@ -530,15 +527,15 @@ elif menu == "➕ Agregar Insumo":
 
         if submit:
 
-            if not validar_texto(tipo):
+            if not validar_texto(articulo):
 
-                st.error("Tipo de insumo inválido")
+                st.error("Articulo inválido")
 
             else:
 
                 data = {
 
-                    "tipo_insumo": tipo.strip(),
+                    "articulo": articulo.strip(),
                     "medidas": medidas.strip(),
                     "eficiencia": eficiencia.strip(),
                     "modelo": modelo.strip(),
@@ -550,7 +547,7 @@ elif menu == "➕ Agregar Insumo":
 
                 }
 
-                ok, mensaje = agregar_insumo(data)
+                ok, mensaje = agregar_articulo(data)
 
                 if ok:
 
@@ -563,28 +560,28 @@ elif menu == "➕ Agregar Insumo":
                     st.error(mensaje)
 
 # =========================================================
-# MODIFICAR INSUMO
+# MODIFICAR ARTICULO
 # =========================================================
 
-elif menu == "✏️ Modificar Insumo":
+elif menu == "✏️ Modificar Articulo":
 
-    st.header("Modificar Insumo")
+    st.header("Modificar Articulo")
 
     df = obtener_inventario()
 
     if df.empty:
 
-        st.info("No existen insumos")
+        st.info("No existen articulos")
 
     else:
 
         opciones = df.apply(
-            lambda x: f"{x['id']} - {x['tipo_insumo']}",
+            lambda x: f"{x['id']} - {x['articulo']}",
             axis=1
         ).tolist()
 
         seleccion = st.selectbox(
-            "Seleccione Insumo",
+            "Seleccione Articulo",
             opciones
         )
 
@@ -594,9 +591,9 @@ elif menu == "✏️ Modificar Insumo":
 
         with st.form("modificar_form"):
 
-            tipo = st.text_input(
-                "Tipo",
-                value=item["tipo_insumo"]
+            articulo = st.text_input(
+                "Articulo",
+                value=item["articulo"]
             )
 
             modelo = st.text_input(
@@ -636,7 +633,7 @@ elif menu == "✏️ Modificar Insumo":
 
                 data = {
 
-                    "tipo_insumo": tipo.strip(),
+                    "articulo": articulo.strip(),
                     "medidas": medidas.strip(),
                     "eficiencia": eficiencia.strip(),
                     "modelo": modelo.strip(),
@@ -647,7 +644,7 @@ elif menu == "✏️ Modificar Insumo":
 
                 }
 
-                ok, mensaje = actualizar_insumo(
+                ok, mensaje = actualizar_articulo(
                     item_id,
                     data
                 )
@@ -663,12 +660,12 @@ elif menu == "✏️ Modificar Insumo":
                     st.error(mensaje)
 
 # =========================================================
-# ELIMINAR INSUMO
+# ELIMINAR ARTICULO
 # =========================================================
 
-elif menu == "🗑️ Eliminar Insumo":
+elif menu == "🗑️ Eliminar Articulo":
 
-    st.header("Eliminar Insumo")
+    st.header("Eliminar Articulo")
 
     df = obtener_inventario()
 
@@ -679,12 +676,12 @@ elif menu == "🗑️ Eliminar Insumo":
     else:
 
         opciones = df.apply(
-            lambda x: f"{x['id']} - {x['tipo_insumo']}",
+            lambda x: f"{x['id']} - {x['articulo']}",
             axis=1
         ).tolist()
 
         seleccion = st.selectbox(
-            "Seleccione Insumo",
+            "Seleccione Articulo",
             opciones
         )
 
@@ -699,7 +696,7 @@ elif menu == "🗑️ Eliminar Insumo":
 
                 item_id = int(seleccion.split(" - ")[0])
 
-                ok, mensaje = eliminar_insumo(item_id)
+                ok, mensaje = eliminar_articulo(item_id)
 
                 if ok:
 
@@ -714,226 +711,3 @@ elif menu == "🗑️ Eliminar Insumo":
             else:
 
                 st.error("❌ Contraseña incorrecta")
-
-# =========================================================
-# BUSCAR INVENTARIO
-# =========================================================
-
-elif menu == "🔍 Buscar Inventario":
-
-    st.header("Buscar Inventario")
-
-    df = obtener_inventario()
-
-    if df.empty:
-
-        st.info("Sin registros")
-
-    else:
-
-        campo = st.selectbox(
-
-            "Campo búsqueda",
-
-            [
-
-                "tipo_insumo",
-                "modelo",
-                "equipo",
-                "medidas",
-                "eficiencia",
-                "realizado_por"
-
-            ]
-
-        )
-
-        texto = st.text_input("Buscar")
-
-        if texto:
-
-            resultado = df[
-                df[campo].astype(str).str.contains(
-                    texto,
-                    case=False,
-                    na=False
-                )
-            ]
-
-            if not resultado.empty:
-
-                st.success(
-                    f"Se encontraron {len(resultado)} resultado(s)"
-                )
-
-                st.dataframe(
-                    resultado.set_index("id"),
-                    use_container_width=True
-                )
-
-            else:
-
-                st.warning("Sin resultados")
-
-        else:
-
-            st.dataframe(
-                df.set_index("id"),
-                use_container_width=True
-            )
-
-# =========================================================
-# AGREGAR SISTEMA
-# =========================================================
-
-elif menu == "➕ Agregar Sistema":
-
-    st.header("Agregar Sistema")
-
-    with st.form("sistema_form"):
-
-        c1, c2 = st.columns(2)
-
-        nombre = c1.text_input("Nombre Sistema *")
-        tipo_filtro = c1.text_input("Tipo Filtro")
-
-        modelo = c2.text_input("Modelo")
-        eficiencia = c2.text_input("Eficiencia")
-
-        medidas = st.text_input("Medidas")
-
-        cantidad = st.number_input(
-            "Cantidad",
-            min_value=0,
-            step=1
-        )
-
-        submit = st.form_submit_button("💾 Guardar")
-
-        if submit:
-
-            if not validar_texto(nombre):
-
-                st.error("Nombre inválido")
-
-            else:
-
-                data = {
-
-                    "nombre": nombre.strip(),
-                    "tipo_filtro": tipo_filtro.strip(),
-                    "modelo": modelo.strip(),
-                    "eficiencia": eficiencia.strip(),
-                    "medidas": medidas.strip(),
-                    "cantidad": int(cantidad),
-                    "fecha_actualizacion": datetime.now().strftime("%Y-%m-%d")
-
-                }
-
-                ok, mensaje = agregar_sistema(data)
-
-                if ok:
-
-                    mostrar_exito("✅ " + mensaje)
-
-                    st.rerun()
-
-                else:
-
-                    st.error(mensaje)
-
-# =========================================================
-# BUSCAR SISTEMA
-# =========================================================
-
-elif menu == "🔍 Buscar Sistema":
-
-    st.header("Buscar Sistema")
-
-    df = obtener_sistemas()
-
-    if df.empty:
-
-        st.info("Sin sistemas")
-
-    else:
-
-        campo = st.selectbox(
-
-            "Campo búsqueda",
-
-            [
-
-                "nombre",
-                "tipo_filtro",
-                "modelo",
-                "eficiencia",
-                "medidas"
-
-            ]
-
-        )
-
-        texto = st.text_input("Buscar Sistema")
-
-        if texto:
-
-            resultado = df[
-                df[campo].astype(str).str.contains(
-                    texto,
-                    case=False,
-                    na=False
-                )
-            ]
-
-            if not resultado.empty:
-
-                st.success(
-                    f"Se encontraron {len(resultado)} resultado(s)"
-                )
-
-                st.dataframe(
-                    resultado.set_index("id"),
-                    use_container_width=True
-                )
-
-            else:
-
-                st.warning("Sin resultados")
-
-        else:
-
-            st.dataframe(
-                df.set_index("id"),
-                use_container_width=True
-            )
-
-# =========================================================
-# HISTORIAL
-# =========================================================
-
-elif menu == "📜 Historial":
-
-    st.header("Historial")
-
-    with get_connection() as conn:
-
-        rows = conn.execute("""
-        SELECT * FROM historial
-        ORDER BY fecha DESC
-        """).fetchall()
-
-    df_hist = pd.DataFrame([dict(x) for x in rows])
-
-    if not df_hist.empty:
-
-        st.dataframe(
-            df_hist.set_index("id"),
-            use_container_width=True
-        )
-
-    else:
-
-        st.info("Sin movimientos")
-        
-        
